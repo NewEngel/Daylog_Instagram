@@ -34,6 +34,8 @@ export type PreferredDay =
 
 export type PreferredPeriod = 'morning' | 'afternoon' | 'evening' | 'flexible'
 
+export type EnergyTimeSlot = 'morning' | 'lunch' | 'evening' | 'varies'
+
 export type ApplicationAnswers = {
   dailyRhythm?: DailyRhythm
   comfortableTime?: string
@@ -57,14 +59,14 @@ export type View =
   | { kind: 'intro' }
   | { kind: 'question'; index: number }
   | { kind: 'session-info' }
-  | { kind: 'contact' }
+  | { kind: 'contact'; step: 1 | 2 | 3 }
   | { kind: 'success'; requestId: string }
 
 export type ChoiceOption<T extends string> = {
   id: T
   marker: string
   title: string
-  description: string
+  description?: string
 }
 
 export type ApiResult = {

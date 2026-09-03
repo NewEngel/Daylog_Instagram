@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import {
   changeAreaOptions,
   dailyRhythmOptions,
+  energyTimeOptions,
   pastPatternOptions,
   preferredDayOptions,
   preferredPeriodOptions,
@@ -20,7 +21,7 @@ import type {
 } from './types'
 import './App.css'
 
-const FORM_VERSION = '2026.09.1'
+const FORM_VERSION = '2026.09.2'
 const SCHEMA_VERSION = 'daylog-life-session-v3'
 const ANSWERS_STORAGE_KEY = 'daylog-life-session-answers-v8'
 
@@ -39,28 +40,50 @@ const initialContact: ContactDetails = {
   website: '',
 }
 
-const questionMeta = [
+type QuestionMeta = {
+  title: string
+  highlight: string
+  caption: string
+  description: string
+  stage?: string
+}
+
+const questionMeta: QuestionMeta[] = [
   {
     title: '요즘 하루는 언제 가장 잘 움직이나요?',
+    highlight: '하루',
+    caption: '오늘의 리듬',
     description: '평소와 가장 가까운 하루를 1개 골라주세요.',
     stage: 'daily_rhythm_selected',
   },
   {
-    title: '하루 중 힘이 나는 때와 지치는 때는 언제인가요?',
-    description: '두 칸에 시간과 상황을 짧게 적어주세요.',
+    title: '언제 가장 힘이 나나요?',
+    highlight: '힘이 나나요',
+    caption: '활력의 순간',
+    description: '가장 가까운 시간대를 하나 골라주세요.',
+  },
+  {
+    title: '언제 가장 지치나요?',
+    highlight: '지치나요',
+    caption: '지치는 순간',
+    description: '가장 가까운 시간대를 하나 골라주세요.',
     stage: 'energy_selected',
   },
   {
-    title: '어떤 때에 일을 꾸준히 이어가기 쉬웠나요?',
-    description: '지금까지 가장 잘 맞았던 방법을 1개 골라주세요.',
+    title: '집중이 가장 잘되었던 때는?',
+    highlight: '집중',
+    caption: '지속의 조건',
+    description: '가장 잘 맞았던 방법 하나를 골라주세요.',
     stage: 'past_pattern_selected',
   },
   {
-    title: '먼저 바꾸고 싶은 생활 습관은 무엇인가요?',
-    description: '중요한 순서대로 1~3개를 눌러주세요. 누른 순서가 우선순위가 됩니다.',
+    title: '지금 가장 변화되고 싶은 습관은?',
+    highlight: '습관',
+    caption: '변화할 습관',
+    description: '중요한 순서로 1~3개를 눌러주세요. 누른 순서가 우선순위예요.',
     stage: 'change_area_selected',
   },
-] as const
+]
 
 function createId(prefix: string) {
   return `${prefix}-${crypto.randomUUID().toUpperCase()}`
@@ -90,7 +113,7 @@ type ContactValidationError = {
   message: string
 }
 
-function validateContact(contact: ContactDetails): ContactValidationError | null {
+function validateBasicInfo(contact: ContactDetails): ContactValidationError | null {
   if (!contact.displayName.trim()) {
     return { field: 'displayName', message: '이름을 입력해 주세요.' }
   }
@@ -104,16 +127,28 @@ function validateContact(contact: ContactDetails): ContactValidationError | null
   if (!contact.nearbyStation.trim()) {
     return { field: 'nearbyStation', message: '만나기 편한 지하철역을 입력해 주세요.' }
   }
+  return null
+}
+
+function validateSchedule(contact: ContactDetails): ContactValidationError | null {
   if (contact.preferredDays.length === 0) {
     return { field: 'preferredDays', message: '가능한 요일을 1개 이상 골라주세요.' }
   }
   if (contact.preferredPeriods.length === 0) {
     return { field: 'preferredPeriods', message: '가능한 시간대를 1개 이상 골라주세요.' }
   }
+  return null
+}
+
+function validateConsent(contact: ContactDetails): ContactValidationError | null {
   if (!contact.privacyConsent) {
     return { field: 'privacyConsent', message: '개인정보 수집·이용 내용을 확인하고 필수 동의에 체크해 주세요.' }
   }
   return null
+}
+
+function validateContact(contact: ContactDetails): ContactValidationError | null {
+  return validateBasicInfo(contact) ?? validateSchedule(contact) ?? validateConsent(contact)
 }
 
 function formatPhoneNumber(value: string) {
@@ -133,6 +168,12 @@ function App() {
   const [copyStatus, setCopyStatus] = useState('')
   const [sessionId, setSessionId] = useState(() => createId('DAYLOG-S'))
   const [requestId, setRequestId] = useState(() => createId('DAYLOG'))
+  const [comfortableOther, setComfortableOther] = useState(
+    () => Boolean(answers.comfortableTime) && !energyTimeOptions.some((option) => option.label === answers.comfortableTime),
+  )
+  const [difficultOther, setDifficultOther] = useState(
+    () => Boolean(answers.difficultTime) && !energyTimeOptions.some((option) => option.label === answers.difficultTime),
+  )
 
   const headingRef = useRef<HTMLHeadingElement>(null)
   const displayNameRef = useRef<HTMLInputElement>(null)
@@ -191,11 +232,10 @@ function App() {
 
   function validateQuestion(index: number) {
     if (index === 0 && !answers.dailyRhythm) return '평소와 가장 가까운 하루를 1개 골라주세요.'
-    if (index === 1 && (!answers.comfortableTime?.trim() || !answers.difficultTime?.trim())) {
-      return '힘이 나는 때와 지치는 때를 각각 적어주세요.'
-    }
-    if (index === 2 && !answers.pastPattern) return '가장 잘 맞았던 방법을 1개 골라주세요.'
-    if (index === 3 && answers.changeAreas.length === 0) return '바꾸고 싶은 습관을 1개 이상 골라주세요.'
+    if (index === 1 && !answers.comfortableTime?.trim()) return '힘이 나는 때를 하나 골라주세요.'
+    if (index === 2 && !answers.difficultTime?.trim()) return '지치는 때를 하나 골라주세요.'
+    if (index === 3 && !answers.pastPattern) return '가장 잘 맞았던 방법을 1개 골라주세요.'
+    if (index === 4 && answers.changeAreas.length === 0) return '바꾸고 싶은 습관을 1개 이상 골라주세요.'
     return ''
   }
 
@@ -209,7 +249,8 @@ function App() {
     }
 
     setError('')
-    track(questionMeta[view.index].stage)
+    const stage = questionMeta[view.index].stage
+    if (stage) track(stage)
     if (view.index === questionMeta.length - 1) {
       goToView({ kind: 'session-info' }, 'forward')
       track('session_info_viewed')
@@ -219,7 +260,10 @@ function App() {
   }
 
   function goBack() {
-    if (view.kind === 'contact') return goToView({ kind: 'session-info' }, 'backward')
+    if (view.kind === 'contact') {
+      if (view.step > 1) return goToView({ kind: 'contact', step: (view.step - 1) as 1 | 2 | 3 }, 'backward')
+      return goToView({ kind: 'session-info' }, 'backward')
+    }
     if (view.kind === 'session-info') return goToView({ kind: 'question', index: questionMeta.length - 1 }, 'backward')
     if (view.kind === 'question' && view.index > 0) {
       return goToView({ kind: 'question', index: view.index - 1 }, 'backward')
@@ -228,8 +272,58 @@ function App() {
   }
 
   function beginApplication() {
-    goToView({ kind: 'contact' }, 'forward')
+    goToView({ kind: 'contact', step: 1 }, 'forward')
     track('application_started')
+  }
+
+  function goContactNext() {
+    if (view.kind !== 'contact') return
+    if (view.step === 1) {
+      const validationError = validateBasicInfo(contact)
+      if (validationError) {
+        setContactErrorField(validationError.field)
+        setError(validationError.message)
+        requestAnimationFrame(() => {
+          if (validationError.field === 'displayName') displayNameRef.current?.focus()
+          if (validationError.field === 'age') ageRef.current?.focus()
+          if (validationError.field === 'phoneNumber') phoneNumberRef.current?.focus()
+          if (validationError.field === 'nearbyStation') nearbyStationRef.current?.focus()
+        })
+        return
+      }
+      setError('')
+      setContactErrorField(null)
+      goToView({ kind: 'contact', step: 2 }, 'forward')
+      return
+    }
+    if (view.step === 2) {
+      const validationError = validateSchedule(contact)
+      if (validationError) {
+        setContactErrorField(validationError.field)
+        setError(validationError.message)
+        requestAnimationFrame(() => {
+          if (validationError.field === 'preferredDays') preferredDaysRef.current?.focus()
+          if (validationError.field === 'preferredPeriods') preferredPeriodsRef.current?.focus()
+        })
+        return
+      }
+      setError('')
+      setContactErrorField(null)
+      goToView({ kind: 'contact', step: 3 }, 'forward')
+    }
+  }
+
+  function selectEnergyTime(field: 'comfortableTime' | 'difficultTime', label: string) {
+    if (field === 'comfortableTime') setComfortableOther(false)
+    else setDifficultOther(false)
+    chooseSingle(field, label)
+  }
+
+  function selectEnergyTimeOther(field: 'comfortableTime' | 'difficultTime') {
+    const isPreset = energyTimeOptions.some((option) => option.label === answers[field])
+    if (field === 'comfortableTime') setComfortableOther(true)
+    else setDifficultOther(true)
+    if (isPreset) chooseSingle(field, '')
   }
 
   function chooseSingle<K extends keyof ApplicationAnswers>(key: K, value: ApplicationAnswers[K]) {
@@ -323,6 +417,8 @@ function App() {
     setContactErrorField(null)
     setError('')
     setCopyStatus('')
+    setComfortableOther(false)
+    setDifficultOther(false)
     goToView({ kind: 'intro' }, 'backward')
   }
 
@@ -342,6 +438,74 @@ function App() {
 
   function goToCover() {
     goToView({ kind: 'intro' }, 'backward')
+  }
+
+  function renderQuestionTitle(title: string, highlight: string): ReactNode {
+    const start = title.indexOf(highlight)
+    if (start === -1) return title
+    return (
+      <>
+        {title.slice(0, start)}
+        <mark className="heading-accent">{highlight}</mark>
+        {title.slice(start + highlight.length)}
+      </>
+    )
+  }
+
+  function renderEnergyChoice(field: 'comfortableTime' | 'difficultTime', legend: string) {
+    const value = answers[field]
+    const isOther = field === 'comfortableTime' ? comfortableOther : difficultOther
+    const inputId = field === 'comfortableTime' ? 'comfortable-time-other' : 'difficult-time-other'
+
+    return (
+      <fieldset className="question-fieldset" aria-describedby={error ? 'question-description question-error' : 'question-description'}>
+        <legend className="sr-only">{legend}을 하나 골라주세요.</legend>
+        <div className="chips-picker-row energy-time-row">
+          {energyTimeOptions.map((option) => {
+            const selected = !isOther && value === option.label
+            return (
+              <label className={`choice-chip-btn ${selected ? 'is-selected' : ''}`} key={option.id}>
+                <input
+                  checked={selected}
+                  name={`energy-${field}`}
+                  onChange={() => selectEnergyTime(field, option.label)}
+                  type="radio"
+                  value={option.id}
+                />
+                <span>{option.label}</span>
+              </label>
+            )
+          })}
+          <label className={`choice-chip-btn ${isOther ? 'is-selected' : ''}`}>
+            <input
+              checked={isOther}
+              name={`energy-${field}`}
+              onChange={() => selectEnergyTimeOther(field)}
+              type="radio"
+              value="other"
+            />
+            <span>기타</span>
+          </label>
+        </div>
+
+        {isOther && (
+          <div className="time-input-wrap energy-other-input">
+            <label className="sr-only" htmlFor={inputId}>{legend} 직접 입력</label>
+            <input
+              id={inputId}
+              type="text"
+              maxLength={100}
+              aria-describedby={error ? 'question-error' : undefined}
+              aria-invalid={Boolean(error && !value?.trim())}
+              className="clean-time-text-input"
+              placeholder="예: 아침 7시, 씻고 난 뒤"
+              value={value || ''}
+              onChange={(e) => chooseSingle(field, e.target.value)}
+            />
+          </div>
+        )}
+      </fieldset>
+    )
   }
 
   function renderChoiceCards<T extends string>(
@@ -369,7 +533,7 @@ function App() {
               </div>
               <div className="spiral-choice-content">
                 <strong className="spiral-choice-title">{option.title}</strong>
-                <span className="spiral-choice-desc">{option.description}</span>
+                {option.description && <span className="spiral-choice-desc">{option.description}</span>}
               </div>
               <span className="spiral-choice-tag" aria-hidden="true">{option.marker}</span>
             </label>
@@ -390,104 +554,23 @@ function App() {
     }
 
     if (index === 1) {
-      const quickComfortExamples = ['아침 7시 기상 직후', '오전 10시 집중할 때', '퇴근 직후 저녁 7시', '밤 10시 조용한 시간']
-      const quickDifficultExamples = ['오후 2~3시 나른할 때', '퇴근길 만원 지하철', '밤 11시 침대에서 폰 볼 때', '아침 출근 준비할 때']
-
-      return (
-        <div className="spiral-time-write-section">
-          <div className="time-write-cards-container">
-            {/* ☀️ 내가 활력을 얻는 순간 */}
-            <fieldset className={`time-write-card time-card--comfort ${answers.comfortableTime?.trim() ? 'is-filled' : ''}`}>
-              <legend className="time-write-title">
-                <span className="time-write-icon" aria-hidden="true">☀️</span>
-                힘이 나는 때
-              </legend>
-              <p className="time-write-subtitle" id="comfortable-time-hint">기분이 좋고 집중이 잘되는 때를 적어주세요.</p>
-
-              <div className="time-input-wrap">
-                <label className="sr-only" htmlFor="comfortable-time">힘이 나는 때</label>
-                <input
-                  id="comfortable-time"
-                  type="text"
-                  maxLength={100}
-                  aria-describedby={error ? 'comfortable-time-hint question-error' : 'comfortable-time-hint'}
-                  aria-invalid={Boolean(error && !answers.comfortableTime?.trim())}
-                  aria-required="true"
-                  className="clean-time-text-input"
-                  placeholder="예: 아침 7시, 씻고 난 뒤"
-                  value={answers.comfortableTime || ''}
-                  onChange={(e) => chooseSingle('comfortableTime', e.target.value)}
-                />
-              </div>
-
-              <div className="quick-example-chips">
-                <span className="chips-hint-label">예시로 입력하기</span>
-                {quickComfortExamples.map((example) => (
-                  <button
-                    type="button"
-                    key={example}
-                    className="quick-chip-btn"
-                    onClick={() => chooseSingle('comfortableTime', example)}
-                  >
-                    + {example}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
-            {/* 🌙 내가 가장 지치는 순간 */}
-            <fieldset className={`time-write-card time-card--difficult ${answers.difficultTime?.trim() ? 'is-filled' : ''}`}>
-              <legend className="time-write-title">
-                <span className="time-write-icon" aria-hidden="true">🌙</span>
-                지치는 때
-              </legend>
-              <p className="time-write-subtitle" id="difficult-time-hint">힘이 빠지거나 버거운 때를 적어주세요.</p>
-
-              <div className="time-input-wrap">
-                <label className="sr-only" htmlFor="difficult-time">지치는 때</label>
-                <input
-                  id="difficult-time"
-                  type="text"
-                  maxLength={100}
-                  aria-describedby={error ? 'difficult-time-hint question-error' : 'difficult-time-hint'}
-                  aria-invalid={Boolean(error && !answers.difficultTime?.trim())}
-                  aria-required="true"
-                  className="clean-time-text-input"
-                  placeholder="예: 오후 3시, 회의가 끝난 뒤"
-                  value={answers.difficultTime || ''}
-                  onChange={(e) => chooseSingle('difficultTime', e.target.value)}
-                />
-              </div>
-
-              <div className="quick-example-chips">
-                <span className="chips-hint-label">예시로 입력하기</span>
-                {quickDifficultExamples.map((example) => (
-                  <button
-                    type="button"
-                    key={example}
-                    className="quick-chip-btn"
-                    onClick={() => chooseSingle('difficultTime', example)}
-                  >
-                    + {example}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          </div>
-        </div>
-      )
+      return renderEnergyChoice('comfortableTime', '힘이 나는 때')
     }
 
     if (index === 2) {
+      return renderEnergyChoice('difficultTime', '지치는 때')
+    }
+
+    if (index === 3) {
       return renderChoiceCards<PastPattern>(
         pastPatternOptions,
         answers.pastPattern,
         (value) => chooseSingle('pastPattern', value),
-        '지금까지 가장 잘 맞았던 방법을 1개 골라주세요.',
+        '가장 잘 맞았던 방법을 1개 골라주세요.',
       )
     }
 
-    if (index === 3) {
+    if (index === 4) {
       return (
         <div className="spiral-habit-section">
           <fieldset className="question-fieldset habit-area-fieldset" aria-describedby={error ? 'habit-selection-status question-error' : 'habit-selection-status'}>
@@ -519,7 +602,7 @@ function App() {
                     </div>
                     <div className="habit-grid-body">
                       <strong className="habit-grid-title">{option.title}</strong>
-                      <span className="habit-grid-desc">{option.description}</span>
+                      {option.description && <span className="habit-grid-desc">{option.description}</span>}
                     </div>
                     {selected && <span className="habit-primary-flag">{rank}순위</span>}
                   </label>
@@ -539,14 +622,17 @@ function App() {
   }
 
   const stageLabel = view.kind === 'question'
-    ? `${view.index + 1} / 4`
+    ? `${view.index + 1} / ${questionMeta.length}`
     : view.kind === 'session-info'
       ? '프로그램 안내'
       : view.kind === 'contact'
-        ? '신청 정보'
+        ? `신청 ${view.step} / 3`
         : view.kind === 'success'
           ? '신청 완료'
           : '나만의 하루 설계'
+
+  const progressTotal = view.kind === 'question' ? questionMeta.length : view.kind === 'contact' ? 3 : 0
+  const progressCurrent = view.kind === 'question' ? view.index : view.kind === 'contact' ? view.step - 1 : -1
 
   return (
     <div className="app-canvas">
@@ -561,18 +647,23 @@ function App() {
         <span className="app-stage-label">{stageLabel}</span>
       </header>
 
-      {view.kind === 'question' && (
+      {(view.kind === 'question' || view.kind === 'contact') && (
         <div
           className="question-progress"
+          style={{ '--progress-steps': progressTotal } as CSSProperties}
           role="progressbar"
-          aria-label={`현재 ${view.index + 1}번째 질문, 전체 4개`}
+          aria-label={
+            view.kind === 'question'
+              ? `현재 ${view.index + 1}번째 질문, 전체 ${questionMeta.length}개`
+              : `신청 정보 입력 ${view.step}번째, 전체 3개`
+          }
           aria-valuemin={1}
-          aria-valuemax={4}
-          aria-valuenow={view.index + 1}
+          aria-valuemax={progressTotal}
+          aria-valuenow={progressCurrent + 1}
         >
-          {[0, 1, 2, 3].map((step) => (
+          {Array.from({ length: progressTotal }, (_, step) => (
             <span
-              className={`progress-segment ${step < view.index ? 'is-complete' : step === view.index ? 'is-current' : ''}`}
+              className={`progress-segment ${step < progressCurrent ? 'is-complete' : step === progressCurrent ? 'is-current' : ''}`}
               key={step}
               aria-hidden="true"
             />
@@ -608,7 +699,7 @@ function App() {
               </div>
 
               <ul className="intro-info-grid" aria-label="LIFE NOTE 진행 정보">
-                <li><span aria-hidden="true">▣</span><strong>4개 질문</strong><small>내 생활 돌아보기</small></li>
+                <li><span aria-hidden="true">▣</span><strong>{questionMeta.length}개 질문</strong><small>내 생활 돌아보기</small></li>
                 <li><span aria-hidden="true">◷</span><strong>약 3분</strong><small>부담 없이 시작</small></li>
                 <li><span aria-hidden="true">⌂</span><strong>대면 체험</strong><small>60분 1:1 대화</small></li>
               </ul>
@@ -629,8 +720,9 @@ function App() {
             <div className="notebook-page-content question-page">
               {/* Question Heading Group */}
               <div className="question-title-wrap">
+                <p className="question-kicker">{questionMeta[view.index].caption}</p>
                 <h1 id="question-title" ref={headingRef} tabIndex={-1} className="question-heading">
-                  {questionMeta[view.index].title}
+                  {renderQuestionTitle(questionMeta[view.index].title, questionMeta[view.index].highlight)}
                 </h1>
                 <p className="question-sub-desc" id="question-description">{questionMeta[view.index].description}</p>
               </div>
@@ -722,254 +814,264 @@ function App() {
           {view.kind === 'contact' && (
             <div className="notebook-page-content contact-page">
               <div className="contact-page-header">
-                <span className="contact-step-tag">06 · 신청</span>
+                <span className="contact-step-tag">06 · 신청 {view.step} / 3</span>
                 <h1 id="contact-title" ref={headingRef} tabIndex={-1} className="contact-main-heading">
-                  60분 체험 프로그램을 신청해 주세요.
+                  {view.step === 1 && '기본 정보를 알려주세요.'}
+                  {view.step === 2 && '가능한 일정을 골라주세요.'}
+                  {view.step === 3 && '개인정보 동의 후 신청을 마쳐주세요.'}
                 </h1>
                 <p className="contact-lead-text">
-                  신청 내용을 확인한 뒤 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.
+                  {view.step === 1 && '연락과 만남 장소를 정하는 데 필요한 정보예요.'}
+                  {view.step === 2 && '가능한 요일과 시간대를 모두 골라주세요. ‘상관없음’을 고르면 다른 항목은 선택할 수 없습니다.'}
+                  {view.step === 3 && '신청 내용을 확인한 뒤 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.'}
                 </p>
               </div>
 
-              <div className="contact-memo-card">
-                <div className="memo-fact-item">
-                  <span className="memo-icon" aria-hidden="true">📍</span>
-                  <div>
-                    <strong>직접 만나는 1:1</strong>
-                    <span>만나기 편한 지하철역을 기준으로 장소를 정해요.</span>
-                  </div>
-                </div>
-                <div className="memo-fact-item">
-                  <span className="memo-icon" aria-hidden="true">⏱️</span>
-                  <div>
-                    <strong>60분 대화</strong>
-                    <span>요즘 생활과 바꾸고 싶은 점을 이야기해요.</span>
-                  </div>
-                </div>
-                <div className="memo-fact-item">
-                  <span className="memo-icon" aria-hidden="true">🔒</span>
-                  <div>
-                    <strong>3개월 뒤 삭제</strong>
-                    <span>신청일부터 3개월 뒤 입력한 정보를 삭제해요.</span>
-                  </div>
-                </div>
-              </div>
+              {error && (
+                <p className="notebook-error-msg contact-error-summary" id="contact-error" role="alert">
+                  ⚠️ {error}
+                </p>
+              )}
 
-              <form className="contact-form-sheet" onSubmit={submitApplication} noValidate>
-                {error && (
-                  <p className="notebook-error-msg contact-error-summary" id="contact-error" role="alert">
-                    ⚠️ {error}
-                  </p>
-                )}
-
-                <fieldset className={`form-group-card basic-info-card ${['displayName', 'age', 'phoneNumber', 'nearbyStation'].includes(contactErrorField ?? '') ? 'has-error' : ''}`}>
-                  <legend className="sr-only">기본 정보</legend>
-                  <div className="group-card-header">
-                    <span className="group-num-pill">01</span>
-                    <div>
-                      <strong className="group-title">기본 정보 <em className="star-required">*</em></strong>
-                      <p className="group-sub">연락과 만남 장소를 정하는 데 필요한 정보예요.</p>
-                    </div>
-                  </div>
-
-                  <div className="contact-fields-grid">
-                    <div className="field-block">
-                      <label className="field-label" htmlFor="display-name">이름</label>
-                      <input
-                        id="display-name"
-                        autoComplete="name"
-                        maxLength={50}
-                        aria-describedby={contactErrorField === 'displayName' ? 'contact-display-name-error' : undefined}
-                        aria-invalid={contactErrorField === 'displayName'}
-                        className={`notebook-text-input ${contactErrorField === 'displayName' ? 'has-error' : ''}`}
-                        onChange={(event) => updateContact({ displayName: event.target.value })}
-                        placeholder="예: 김데이"
-                        ref={displayNameRef}
-                        required
-                        value={contact.displayName}
-                      />
-                      {contactErrorField === 'displayName' && <p className="field-error" id="contact-display-name-error">{error}</p>}
-                    </div>
-
-                    <div className="field-block">
-                      <label className="field-label" htmlFor="age">나이</label>
-                      <input
-                        id="age"
-                        aria-describedby={contactErrorField === 'age' ? 'contact-age-error' : undefined}
-                        aria-invalid={contactErrorField === 'age'}
-                        className={`notebook-text-input ${contactErrorField === 'age' ? 'has-error' : ''}`}
-                        inputMode="numeric"
-                        maxLength={3}
-                        onChange={(event) => updateContact({ age: event.target.value.replace(/\D/g, '').slice(0, 3) })}
-                        placeholder="예: 29"
-                        ref={ageRef}
-                        required
-                        value={contact.age}
-                      />
-                      {contactErrorField === 'age' && <p className="field-error" id="contact-age-error">{error}</p>}
-                    </div>
-
-                    <div className="field-block">
-                      <label className="field-label" htmlFor="phone-number">전화번호</label>
-                      <input
-                        id="phone-number"
-                        autoComplete="tel"
-                        aria-describedby={contactErrorField === 'phoneNumber' ? 'phone-format-help contact-phone-error' : 'phone-format-help'}
-                        aria-invalid={contactErrorField === 'phoneNumber'}
-                        className={`notebook-text-input ${contactErrorField === 'phoneNumber' ? 'has-error' : ''}`}
-                        inputMode="tel"
-                        maxLength={13}
-                        onChange={(event) => updateContact({ phoneNumber: formatPhoneNumber(event.target.value) })}
-                        placeholder="010-0000-0000"
-                        ref={phoneNumberRef}
-                        required
-                        value={contact.phoneNumber}
-                      />
-                      <small className="field-format-help" id="phone-format-help">숫자를 입력하면 하이픈이 자동으로 들어갑니다.</small>
-                      {contactErrorField === 'phoneNumber' && <p className="field-error" id="contact-phone-error">{error}</p>}
-                    </div>
-
-                    <div className="field-block">
-                      <label className="field-label" htmlFor="nearby-station">만나기 편한 역</label>
-                      <input
-                        id="nearby-station"
-                        maxLength={50}
-                        aria-describedby={contactErrorField === 'nearbyStation' ? 'contact-station-error' : undefined}
-                        aria-invalid={contactErrorField === 'nearbyStation'}
-                        className={`notebook-text-input ${contactErrorField === 'nearbyStation' ? 'has-error' : ''}`}
-                        onChange={(event) => updateContact({ nearbyStation: event.target.value })}
-                        placeholder="예: 2호선 성수역"
-                        ref={nearbyStationRef}
-                        required
-                        value={contact.nearbyStation}
-                      />
-                      {contactErrorField === 'nearbyStation' && <p className="field-error" id="contact-station-error">{error}</p>}
-                    </div>
-                  </div>
-                </fieldset>
-
-                <fieldset className={`form-group-card schedule-group ${contactErrorField === 'preferredDays' || contactErrorField === 'preferredPeriods' ? 'has-error' : ''}`}>
-                  <legend className="sr-only">가능한 요일과 시간대</legend>
-                  <div className="group-card-header">
-                    <span className="group-num-pill">02</span>
-                    <div>
-                    <strong className="group-title">가능한 일정 <em className="star-required">*</em></strong>
-                      <p className="group-sub">가능한 항목을 모두 골라주세요. ‘상관없음’ 항목을 고르면 다른 항목은 선택할 수 없습니다.</p>
-                    </div>
-                  </div>
-
-                  <div className="schedule-picker-section">
-                    <strong className="sub-field-label">가능 요일</strong>
-                    <div className="chips-picker-row">
-                      {preferredDayOptions.map((option, index) => {
-                        const isSelected = contact.preferredDays.includes(option.id)
-                        return (
-                          <label className={`choice-chip-btn ${isSelected ? 'is-selected' : ''}`} key={option.id}>
-                            <input
-                              checked={isSelected}
-                              aria-describedby={contactErrorField === 'preferredDays' ? 'contact-days-error' : undefined}
-                              aria-invalid={contactErrorField === 'preferredDays'}
-                              onChange={() => updateContact({
-                                preferredDays: toggleExclusive<PreferredDay>(contact.preferredDays, option.id, 'flexible'),
-                              })}
-                              ref={index === 0 ? preferredDaysRef : undefined}
-                              type="checkbox"
-                            />
-                            <span>{option.label}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                    {contactErrorField === 'preferredDays' && <p className="field-error" id="contact-days-error">{error}</p>}
-                  </div>
-
-                  <div className="schedule-picker-section">
-                    <strong className="sub-field-label">가능 시간대</strong>
-                    <div className="chips-picker-row">
-                      {preferredPeriodOptions.map((option, index) => {
-                        const isSelected = contact.preferredPeriods.includes(option.id)
-                        return (
-                          <label className={`choice-chip-btn ${isSelected ? 'is-selected' : ''}`} key={option.id}>
-                            <input
-                              checked={isSelected}
-                              aria-describedby={contactErrorField === 'preferredPeriods' ? 'contact-periods-error' : undefined}
-                              aria-invalid={contactErrorField === 'preferredPeriods'}
-                              onChange={() => updateContact({
-                                preferredPeriods: toggleExclusive<PreferredPeriod>(contact.preferredPeriods, option.id, 'flexible'),
-                              })}
-                              ref={index === 0 ? preferredPeriodsRef : undefined}
-                              type="checkbox"
-                            />
-                            <span>{option.label}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                    {contactErrorField === 'preferredPeriods' && <p className="field-error" id="contact-periods-error">{error}</p>}
-                  </div>
-                </fieldset>
-
-                <label className="honeypot" aria-hidden="true">
-                  웹사이트
-                  <input
-                    autoComplete="off"
-                    name="website"
-                    onChange={(event) => updateContact({ website: event.target.value })}
-                    tabIndex={-1}
-                    value={contact.website}
-                  />
-                </label>
-
-                <div className={`privacy-consent-card ${contactErrorField === 'privacyConsent' ? 'has-error' : ''}`}>
-                  <div className="group-card-header">
-                    <span className="group-num-pill">03</span>
-                    <div>
-                      <strong className="group-title">개인정보 동의 <em className="star-required">*</em></strong>
-                      <p className="group-sub">수집 내용과 보유 기간을 확인해 주세요.</p>
-                    </div>
-                  </div>
-                  <div className="privacy-policy-copy">
-                    <strong className="consent-title">개인정보 수집 및 이용 안내</strong>
-                    <dl className="privacy-policy-list">
+              {view.step === 1 && (
+                <form className="contact-form-sheet" onSubmit={(event) => { event.preventDefault(); goContactNext() }} noValidate>
+                  <fieldset className={`form-group-card basic-info-card ${['displayName', 'age', 'phoneNumber', 'nearbyStation'].includes(contactErrorField ?? '') ? 'has-error' : ''}`}>
+                    <legend className="sr-only">기본 정보</legend>
+                    <div className="group-card-header">
+                      <span className="group-num-pill">01</span>
                       <div>
-                        <dt>수집 항목</dt>
-                        <dd>이름, 나이, 전화번호, 만나기 편한 역, 가능한 요일과 시간, 생활 질문 답변</dd>
+                        <strong className="group-title">기본 정보 <em className="star-required">*</em></strong>
+                        <p className="group-sub">연락과 만남 장소를 정하는 데 필요한 정보예요.</p>
                       </div>
-                      <div>
-                        <dt>수집 목적</dt>
-                        <dd>신청 확인, 일정 연락과 60분 대화 준비에 사용합니다.</dd>
+                    </div>
+
+                    <div className="contact-fields-grid">
+                      <div className="field-block">
+                        <label className="field-label" htmlFor="display-name">이름</label>
+                        <input
+                          id="display-name"
+                          autoComplete="name"
+                          maxLength={50}
+                          aria-describedby={contactErrorField === 'displayName' ? 'contact-display-name-error' : undefined}
+                          aria-invalid={contactErrorField === 'displayName'}
+                          className={`notebook-text-input ${contactErrorField === 'displayName' ? 'has-error' : ''}`}
+                          onChange={(event) => updateContact({ displayName: event.target.value })}
+                          placeholder="예: 김데이"
+                          ref={displayNameRef}
+                          required
+                          value={contact.displayName}
+                        />
+                        {contactErrorField === 'displayName' && <p className="field-error" id="contact-display-name-error">{error}</p>}
                       </div>
-                      <div>
-                        <dt>보유 기간</dt>
-                        <dd>신청일부터 3개월 뒤 삭제합니다.</dd>
+
+                      <div className="field-block">
+                        <label className="field-label" htmlFor="age">나이</label>
+                        <input
+                          id="age"
+                          aria-describedby={contactErrorField === 'age' ? 'contact-age-error' : undefined}
+                          aria-invalid={contactErrorField === 'age'}
+                          className={`notebook-text-input ${contactErrorField === 'age' ? 'has-error' : ''}`}
+                          inputMode="numeric"
+                          maxLength={3}
+                          onChange={(event) => updateContact({ age: event.target.value.replace(/\D/g, '').slice(0, 3) })}
+                          placeholder="예: 29"
+                          ref={ageRef}
+                          required
+                          value={contact.age}
+                        />
+                        {contactErrorField === 'age' && <p className="field-error" id="contact-age-error">{error}</p>}
                       </div>
-                    </dl>
-                  </div>
-                  <label className="consent-checkbox-label consent-checkbox-label--boxed">
+
+                      <div className="field-block">
+                        <label className="field-label" htmlFor="phone-number">전화번호</label>
+                        <input
+                          id="phone-number"
+                          autoComplete="tel"
+                          aria-describedby={contactErrorField === 'phoneNumber' ? 'phone-format-help contact-phone-error' : 'phone-format-help'}
+                          aria-invalid={contactErrorField === 'phoneNumber'}
+                          className={`notebook-text-input ${contactErrorField === 'phoneNumber' ? 'has-error' : ''}`}
+                          inputMode="tel"
+                          maxLength={13}
+                          onChange={(event) => updateContact({ phoneNumber: formatPhoneNumber(event.target.value) })}
+                          placeholder="010-0000-0000"
+                          ref={phoneNumberRef}
+                          required
+                          value={contact.phoneNumber}
+                        />
+                        <small className="field-format-help" id="phone-format-help">숫자를 입력하면 하이픈이 자동으로 들어갑니다.</small>
+                        {contactErrorField === 'phoneNumber' && <p className="field-error" id="contact-phone-error">{error}</p>}
+                      </div>
+
+                      <div className="field-block">
+                        <label className="field-label" htmlFor="nearby-station">만나기 편한 역</label>
+                        <input
+                          id="nearby-station"
+                          maxLength={50}
+                          aria-describedby={contactErrorField === 'nearbyStation' ? 'contact-station-error' : undefined}
+                          aria-invalid={contactErrorField === 'nearbyStation'}
+                          className={`notebook-text-input ${contactErrorField === 'nearbyStation' ? 'has-error' : ''}`}
+                          onChange={(event) => updateContact({ nearbyStation: event.target.value })}
+                          placeholder="예: 2호선 성수역"
+                          ref={nearbyStationRef}
+                          required
+                          value={contact.nearbyStation}
+                        />
+                        {contactErrorField === 'nearbyStation' && <p className="field-error" id="contact-station-error">{error}</p>}
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <label className="honeypot" aria-hidden="true">
+                    웹사이트
                     <input
-                      checked={contact.privacyConsent}
-                      aria-describedby={contactErrorField === 'privacyConsent' ? 'contact-privacy-error' : undefined}
-                      aria-invalid={contactErrorField === 'privacyConsent'}
-                      onChange={(event) => updateContact({ privacyConsent: event.target.checked })}
-                      ref={consentRef}
-                      required
-                      type="checkbox"
+                      autoComplete="off"
+                      name="website"
+                      onChange={(event) => updateContact({ website: event.target.value })}
+                      tabIndex={-1}
+                      value={contact.website}
                     />
-                    <span className="consent-title">[필수] 개인정보 수집과 이용에 동의합니다.</span>
                   </label>
-                  {contactErrorField === 'privacyConsent' && <p className="field-error" id="contact-privacy-error">{error}</p>}
-                </div>
 
-                <div className="contact-actions-bar">
-                  <button className="notebook-secondary-btn" onClick={goBack} type="button">
-                    ← 프로그램 안내로 돌아가기
-                  </button>
-                  <button className="notebook-primary-btn" disabled={submitting} type="submit">
-                    <span className="btn-label-text">{submitting ? '신청 내용을 보내고 있어요. 다시 누르지 마세요.' : '이 내용으로 신청하기'}</span>
-                    {!submitting && <span className="btn-circle-arrow" aria-hidden="true">→</span>}
-                  </button>
-                </div>
-              </form>
+                  <div className="contact-actions-bar">
+                    <button className="notebook-secondary-btn" onClick={goBack} type="button">
+                      ← 프로그램 안내로 돌아가기
+                    </button>
+                    <button className="notebook-primary-btn" type="submit">
+                      <span className="btn-label-text">다음</span>
+                      <span className="btn-circle-arrow" aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {view.step === 2 && (
+                <form className="contact-form-sheet" onSubmit={(event) => { event.preventDefault(); goContactNext() }} noValidate>
+                  <fieldset className={`form-group-card schedule-group ${contactErrorField === 'preferredDays' || contactErrorField === 'preferredPeriods' ? 'has-error' : ''}`}>
+                    <legend className="sr-only">가능한 요일과 시간대</legend>
+                    <div className="group-card-header">
+                      <span className="group-num-pill">02</span>
+                      <div>
+                      <strong className="group-title">가능한 일정 <em className="star-required">*</em></strong>
+                        <p className="group-sub">가능한 항목을 모두 골라주세요. ‘상관없음’ 항목을 고르면 다른 항목은 선택할 수 없습니다.</p>
+                      </div>
+                    </div>
+
+                    <div className="schedule-picker-section">
+                      <strong className="sub-field-label">가능 요일</strong>
+                      <div className="chips-picker-row">
+                        {preferredDayOptions.map((option, index) => {
+                          const isSelected = contact.preferredDays.includes(option.id)
+                          return (
+                            <label className={`choice-chip-btn ${isSelected ? 'is-selected' : ''}`} key={option.id}>
+                              <input
+                                checked={isSelected}
+                                aria-describedby={contactErrorField === 'preferredDays' ? 'contact-days-error' : undefined}
+                                aria-invalid={contactErrorField === 'preferredDays'}
+                                onChange={() => updateContact({
+                                  preferredDays: toggleExclusive<PreferredDay>(contact.preferredDays, option.id, 'flexible'),
+                                })}
+                                ref={index === 0 ? preferredDaysRef : undefined}
+                                type="checkbox"
+                              />
+                              <span>{option.label}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                      {contactErrorField === 'preferredDays' && <p className="field-error" id="contact-days-error">{error}</p>}
+                    </div>
+
+                    <div className="schedule-picker-section">
+                      <strong className="sub-field-label">가능 시간대</strong>
+                      <div className="chips-picker-row">
+                        {preferredPeriodOptions.map((option, index) => {
+                          const isSelected = contact.preferredPeriods.includes(option.id)
+                          return (
+                            <label className={`choice-chip-btn ${isSelected ? 'is-selected' : ''}`} key={option.id}>
+                              <input
+                                checked={isSelected}
+                                aria-describedby={contactErrorField === 'preferredPeriods' ? 'contact-periods-error' : undefined}
+                                aria-invalid={contactErrorField === 'preferredPeriods'}
+                                onChange={() => updateContact({
+                                  preferredPeriods: toggleExclusive<PreferredPeriod>(contact.preferredPeriods, option.id, 'flexible'),
+                                })}
+                                ref={index === 0 ? preferredPeriodsRef : undefined}
+                                type="checkbox"
+                              />
+                              <span>{option.label}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                      {contactErrorField === 'preferredPeriods' && <p className="field-error" id="contact-periods-error">{error}</p>}
+                    </div>
+                  </fieldset>
+
+                  <div className="contact-actions-bar">
+                    <button className="notebook-secondary-btn" onClick={goBack} type="button">
+                      ← 기본 정보로 돌아가기
+                    </button>
+                    <button className="notebook-primary-btn" type="submit">
+                      <span className="btn-label-text">다음</span>
+                      <span className="btn-circle-arrow" aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {view.step === 3 && (
+                <form className="contact-form-sheet" onSubmit={submitApplication} noValidate>
+                  <div className={`privacy-consent-card ${contactErrorField === 'privacyConsent' ? 'has-error' : ''}`}>
+                    <div className="group-card-header">
+                      <span className="group-num-pill">03</span>
+                      <div>
+                        <strong className="group-title">개인정보 동의 <em className="star-required">*</em></strong>
+                        <p className="group-sub">수집 내용과 보유 기간을 확인해 주세요.</p>
+                      </div>
+                    </div>
+                    <div className="privacy-policy-copy">
+                      <strong className="consent-title">개인정보 수집 및 이용 안내</strong>
+                      <dl className="privacy-policy-list">
+                        <div>
+                          <dt>수집 항목</dt>
+                          <dd>이름, 나이, 전화번호, 만나기 편한 역, 가능한 요일과 시간, 생활 질문 답변</dd>
+                        </div>
+                        <div>
+                          <dt>수집 목적</dt>
+                          <dd>신청 확인, 일정 연락과 60분 대화 준비에 사용합니다.</dd>
+                        </div>
+                        <div>
+                          <dt>보유 기간</dt>
+                          <dd>신청일부터 3개월 뒤 삭제합니다.</dd>
+                        </div>
+                      </dl>
+                    </div>
+                    <label className="consent-checkbox-label consent-checkbox-label--boxed">
+                      <input
+                        checked={contact.privacyConsent}
+                        aria-describedby={contactErrorField === 'privacyConsent' ? 'contact-privacy-error' : undefined}
+                        aria-invalid={contactErrorField === 'privacyConsent'}
+                        onChange={(event) => updateContact({ privacyConsent: event.target.checked })}
+                        ref={consentRef}
+                        required
+                        type="checkbox"
+                      />
+                      <span className="consent-title">[필수] 개인정보 수집과 이용에 동의합니다.</span>
+                    </label>
+                    {contactErrorField === 'privacyConsent' && <p className="field-error" id="contact-privacy-error">{error}</p>}
+                  </div>
+
+                  <div className="contact-actions-bar">
+                    <button className="notebook-secondary-btn" onClick={goBack} type="button">
+                      ← 가능한 일정으로 돌아가기
+                    </button>
+                    <button className="notebook-primary-btn" disabled={submitting} type="submit">
+                      <span className="btn-label-text">{submitting ? '신청 내용을 보내고 있어요. 다시 누르지 마세요.' : '이 내용으로 신청하기'}</span>
+                      {!submitting && <span className="btn-circle-arrow" aria-hidden="true">→</span>}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 
