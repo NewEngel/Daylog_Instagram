@@ -9,9 +9,14 @@ import type {
 } from './types'
 
 export const energyTimeOptions: Array<{ id: EnergyTimeSlot; label: string }> = [
+  { id: 'dawn', label: '새벽' },
   { id: 'morning', label: '아침' },
+  { id: 'late_morning', label: '오전' },
   { id: 'lunch', label: '점심' },
+  { id: 'afternoon', label: '오후' },
   { id: 'evening', label: '저녁' },
+  { id: 'night', label: '밤' },
+  { id: 'commute', label: '출퇴근길' },
   { id: 'varies', label: '매일 달라요' },
 ]
 

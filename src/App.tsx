@@ -168,12 +168,6 @@ function App() {
   const [copyStatus, setCopyStatus] = useState('')
   const [sessionId, setSessionId] = useState(() => createId('DAYLOG-S'))
   const [requestId, setRequestId] = useState(() => createId('DAYLOG'))
-  const [comfortableOther, setComfortableOther] = useState(
-    () => Boolean(answers.comfortableTime) && !energyTimeOptions.some((option) => option.label === answers.comfortableTime),
-  )
-  const [difficultOther, setDifficultOther] = useState(
-    () => Boolean(answers.difficultTime) && !energyTimeOptions.some((option) => option.label === answers.difficultTime),
-  )
 
   const headingRef = useRef<HTMLHeadingElement>(null)
   const displayNameRef = useRef<HTMLInputElement>(null)
@@ -314,16 +308,7 @@ function App() {
   }
 
   function selectEnergyTime(field: 'comfortableTime' | 'difficultTime', label: string) {
-    if (field === 'comfortableTime') setComfortableOther(false)
-    else setDifficultOther(false)
     chooseSingle(field, label)
-  }
-
-  function selectEnergyTimeOther(field: 'comfortableTime' | 'difficultTime') {
-    const isPreset = energyTimeOptions.some((option) => option.label === answers[field])
-    if (field === 'comfortableTime') setComfortableOther(true)
-    else setDifficultOther(true)
-    if (isPreset) chooseSingle(field, '')
   }
 
   function chooseSingle<K extends keyof ApplicationAnswers>(key: K, value: ApplicationAnswers[K]) {
@@ -417,8 +402,6 @@ function App() {
     setContactErrorField(null)
     setError('')
     setCopyStatus('')
-    setComfortableOther(false)
-    setDifficultOther(false)
     goToView({ kind: 'intro' }, 'backward')
   }
 
@@ -454,15 +437,13 @@ function App() {
 
   function renderEnergyChoice(field: 'comfortableTime' | 'difficultTime', legend: string) {
     const value = answers[field]
-    const isOther = field === 'comfortableTime' ? comfortableOther : difficultOther
-    const inputId = field === 'comfortableTime' ? 'comfortable-time-other' : 'difficult-time-other'
 
     return (
       <fieldset className="question-fieldset" aria-describedby={error ? 'question-description question-error' : 'question-description'}>
         <legend className="sr-only">{legend}을 하나 골라주세요.</legend>
-        <div className="chips-picker-row energy-time-row">
+        <div className="energy-time-grid">
           {energyTimeOptions.map((option) => {
-            const selected = !isOther && value === option.label
+            const selected = value === option.label
             return (
               <label className={`choice-chip-btn ${selected ? 'is-selected' : ''}`} key={option.id}>
                 <input
@@ -476,34 +457,7 @@ function App() {
               </label>
             )
           })}
-          <label className={`choice-chip-btn ${isOther ? 'is-selected' : ''}`}>
-            <input
-              checked={isOther}
-              name={`energy-${field}`}
-              onChange={() => selectEnergyTimeOther(field)}
-              type="radio"
-              value="other"
-            />
-            <span>기타</span>
-          </label>
         </div>
-
-        {isOther && (
-          <div className="time-input-wrap energy-other-input">
-            <label className="sr-only" htmlFor={inputId}>{legend} 직접 입력</label>
-            <input
-              id={inputId}
-              type="text"
-              maxLength={100}
-              aria-describedby={error ? 'question-error' : undefined}
-              aria-invalid={Boolean(error && !value?.trim())}
-              className="clean-time-text-input"
-              placeholder="예: 아침 7시, 씻고 난 뒤"
-              value={value || ''}
-              onChange={(e) => chooseSingle(field, e.target.value)}
-            />
-          </div>
-        )}
       </fieldset>
     )
   }

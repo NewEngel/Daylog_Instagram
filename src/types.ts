@@ -34,7 +34,16 @@ export type PreferredDay =
 
 export type PreferredPeriod = 'morning' | 'afternoon' | 'evening' | 'flexible'
 
-export type EnergyTimeSlot = 'morning' | 'lunch' | 'evening' | 'varies'
+export type EnergyTimeSlot =
+  | 'dawn'
+  | 'morning'
+  | 'late_morning'
+  | 'lunch'
+  | 'afternoon'
+  | 'evening'
+  | 'night'
+  | 'commute'
+  | 'varies'
 
 export type ApplicationAnswers = {
   dailyRhythm?: DailyRhythm

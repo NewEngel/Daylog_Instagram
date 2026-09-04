@@ -85,12 +85,13 @@ button:disabled { cursor: not-allowed; }
 .spiral-choice-title { color: var(--color-text-strong); font-size: 17px; line-height: 1.4; }
 .spiral-choice-desc { color: rgb(37 37 37 / 76%); font-size: 14px; line-height: 1.5; word-break: keep-all; }
 .spiral-choice-tag { padding: 2px 8px; color: var(--color-brand-navy); background: var(--color-brand-yellow); border-radius: 999px; font-size: 12px; font-weight: 800; }
-.clean-time-text-input, .notebook-text-input { width: 100%; min-height: 48px; padding: 10px 12px; color: var(--color-text); background: var(--color-brand-white); border: 1px solid rgb(23 32 51 / 28%); border-radius: var(--radius-small); font-size: 16px; }
-.clean-time-text-input::placeholder, .notebook-text-input::placeholder { color: rgb(37 37 37 / 64%); }
-.clean-time-text-input:focus, .notebook-text-input:focus { border-color: var(--color-brand-navy); outline: 3px solid var(--color-brand-navy); outline-offset: 2px; }
+.notebook-text-input { width: 100%; min-height: 48px; padding: 10px 12px; color: var(--color-text); background: var(--color-brand-white); border: 1px solid rgb(23 32 51 / 28%); border-radius: var(--radius-small); font-size: 16px; }
+.notebook-text-input::placeholder { color: rgb(37 37 37 / 64%); }
+.notebook-text-input:focus { border-color: var(--color-brand-navy); outline: 3px solid var(--color-brand-navy); outline-offset: 2px; }
 .notebook-text-input.has-error { border-color: var(--color-error); }
-.energy-other-input { margin-top: 14px; }
 .choice-chip-btn { min-height: 44px; padding: 8px 12px; color: var(--color-text-strong); background: var(--color-brand-white); border: 1px solid var(--color-border); border-radius: 999px; font-size: 13px; font-weight: 600; }
+.energy-time-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.energy-time-grid .choice-chip-btn { width: 100%; border-radius: var(--radius-medium); }
 
 .habit-header-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: var(--color-text-strong); font-size: 14px; }
 .habit-count-tag strong { margin-left: 4px; }
