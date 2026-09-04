@@ -34,19 +34,30 @@ export type PreferredDay =
 
 export type PreferredPeriod = 'morning' | 'afternoon' | 'evening' | 'flexible'
 
-export type EnergyTimeSlot =
-  | 'dawn'
-  | 'morning'
-  | 'lunch'
-  | 'evening'
-  | 'night'
-  | 'commute'
+export type EnergyBoostMoment =
+  | 'slept_well'
+  | 'solo_focus'
+  | 'with_people'
+  | 'moving_body'
+  | 'favorite_activity'
+  | 'finished_task'
+  | 'varies'
+
+export type EnergyDrainMoment =
+  | 'lack_of_sleep'
+  | 'task_overload'
+  | 'long_focus'
+  | 'many_people'
+  | 'long_commute'
+  | 'no_rest'
   | 'varies'
 
 export type ApplicationAnswers = {
   dailyRhythm?: DailyRhythm
   comfortableTime?: string
+  comfortableTimeOther?: string
   difficultTime?: string
+  difficultTimeOther?: string
   pastPattern?: PastPattern
   changeAreas: ChangeArea[]
 }

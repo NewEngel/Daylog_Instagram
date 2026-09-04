@@ -49,6 +49,16 @@ test('energy moments remain text through the API and Apps Script boundary', asyn
   assert.doesNotMatch(appsScript, /Number\(payload\.(comfortableTime|difficultTime)\)/)
 })
 
+test('energy "other" draft state is stripped before the submit payload is built', async () => {
+  const app = await source('app')
+
+  assert.match(
+    app,
+    /const \{ comfortableTimeOther: _comfortableTimeOther, difficultTimeOther: _difficultTimeOther, \.\.\.submittableAnswers \} = answers/,
+  )
+  assert.match(app, /\.\.\.submittableAnswers,\n\s*\.\.\.contact,/)
+})
+
 test('removed question and summary stages cannot reappear in the runtime funnel', async () => {
   const [app, trackApi, appsScript] = await Promise.all([
     source('app'),

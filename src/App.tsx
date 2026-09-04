@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type R
 import {
   changeAreaOptions,
   dailyRhythmOptions,
-  energyTimeOptions,
+  energyBoostOptions,
+  energyDrainOptions,
   pastPatternOptions,
   preferredDayOptions,
   preferredPeriodOptions,
@@ -57,16 +58,16 @@ const questionMeta: QuestionMeta[] = [
     stage: 'daily_rhythm_selected',
   },
   {
-    title: '언제 가장 힘이 나나요?',
+    title: '어떤 순간에 가장 힘이 나나요?',
     highlight: '힘이 나나요',
-    caption: '활력의 순간',
-    description: '가장 가까운 시간대를 하나 골라주세요.',
+    caption: '힘이 나는 순간',
+    description: '평소와 가장 가까운 순간을 하나 골라주세요.',
   },
   {
-    title: '언제 가장 지치나요?',
-    highlight: '지치나요',
-    caption: '지치는 순간',
-    description: '가장 가까운 시간대를 하나 골라주세요.',
+    title: '어떤 순간에 가장 힘이 빠지나요?',
+    highlight: '힘이 빠지나요',
+    caption: '힘이 빠지는 순간',
+    description: '평소와 가장 가까운 순간을 하나 골라주세요.',
     stage: 'energy_selected',
   },
   {
@@ -87,6 +88,10 @@ const questionMeta: QuestionMeta[] = [
 
 function createId(prefix: string) {
   return `${prefix}-${crypto.randomUUID().toUpperCase()}`
+}
+
+function isOtherValue(value: string | undefined, options: Array<{ label: string }>) {
+  return Boolean(value?.trim()) && !options.some((option) => option.label === value)
 }
 
 function loadAnswers(): ApplicationAnswers {
@@ -168,6 +173,12 @@ function App() {
   const [copyStatus, setCopyStatus] = useState('')
   const [sessionId, setSessionId] = useState(() => createId('DAYLOG-S'))
   const [requestId, setRequestId] = useState(() => createId('DAYLOG'))
+  const [comfortableOtherMode, setComfortableOtherMode] = useState(
+    () => isOtherValue(answers.comfortableTime, energyBoostOptions) || Boolean(answers.comfortableTimeOther),
+  )
+  const [difficultOtherMode, setDifficultOtherMode] = useState(
+    () => isOtherValue(answers.difficultTime, energyDrainOptions) || Boolean(answers.difficultTimeOther),
+  )
 
   const headingRef = useRef<HTMLHeadingElement>(null)
   const displayNameRef = useRef<HTMLInputElement>(null)
@@ -178,6 +189,8 @@ function App() {
   const preferredPeriodsRef = useRef<HTMLInputElement>(null)
   const consentRef = useRef<HTMLInputElement>(null)
   const questionErrorRef = useRef<HTMLParagraphElement>(null)
+  const comfortableOtherInputRef = useRef<HTMLInputElement>(null)
+  const difficultOtherInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     sessionStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers))
@@ -224,10 +237,18 @@ function App() {
     track('started')
   }
 
+  function validateEnergyField(field: 'comfortableTime' | 'difficultTime') {
+    const value = answers[field]
+    const otherMode = field === 'comfortableTime' ? comfortableOtherMode : difficultOtherMode
+    if (otherMode) return value?.trim() ? '' : '기타로 답할 순간을 짧게 적어주세요.'
+    const noun = field === 'comfortableTime' ? '힘이 나는' : '힘이 빠지는'
+    return value?.trim() ? '' : `가장 ${noun} 순간을 하나 골라주세요.`
+  }
+
   function validateQuestion(index: number) {
     if (index === 0 && !answers.dailyRhythm) return '평소와 가장 가까운 하루를 1개 골라주세요.'
-    if (index === 1 && !answers.comfortableTime?.trim()) return '힘이 나는 때를 하나 골라주세요.'
-    if (index === 2 && !answers.difficultTime?.trim()) return '지치는 때를 하나 골라주세요.'
+    if (index === 1) return validateEnergyField('comfortableTime')
+    if (index === 2) return validateEnergyField('difficultTime')
     if (index === 3 && !answers.pastPattern) return '가장 잘 맞았던 방법을 1개 골라주세요.'
     if (index === 4 && answers.changeAreas.length === 0) return '바꾸고 싶은 습관을 1개 이상 골라주세요.'
     return ''
@@ -238,7 +259,13 @@ function App() {
     const validationError = validateQuestion(view.index)
     if (validationError) {
       setError(validationError)
-      requestAnimationFrame(() => questionErrorRef.current?.focus())
+      if (view.index === 1 && comfortableOtherMode) {
+        requestAnimationFrame(() => comfortableOtherInputRef.current?.focus())
+      } else if (view.index === 2 && difficultOtherMode) {
+        requestAnimationFrame(() => difficultOtherInputRef.current?.focus())
+      } else {
+        requestAnimationFrame(() => questionErrorRef.current?.focus())
+      }
       return
     }
 
@@ -307,8 +334,33 @@ function App() {
     }
   }
 
-  function selectEnergyTime(field: 'comfortableTime' | 'difficultTime', label: string) {
+  function setEnergyOtherMode(field: 'comfortableTime' | 'difficultTime', value: boolean) {
+    if (field === 'comfortableTime') setComfortableOtherMode(value)
+    else setDifficultOtherMode(value)
+  }
+
+  function selectEnergyPreset(field: 'comfortableTime' | 'difficultTime', label: string) {
+    setEnergyOtherMode(field, false)
     chooseSingle(field, label)
+  }
+
+  function selectEnergyOther(field: 'comfortableTime' | 'difficultTime') {
+    setEnergyOtherMode(field, true)
+    const draft = (field === 'comfortableTime' ? answers.comfortableTimeOther : answers.difficultTimeOther) ?? ''
+    chooseSingle(field, draft.trim() ? `기타: ${draft.trim()}` : '')
+    const inputRef = field === 'comfortableTime' ? comfortableOtherInputRef : difficultOtherInputRef
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  function updateEnergyOtherDraft(field: 'comfortableTime' | 'difficultTime', raw: string) {
+    const draftKey = field === 'comfortableTime' ? 'comfortableTimeOther' : 'difficultTimeOther'
+    const trimmed = raw.trim()
+    setAnswers((current) => ({
+      ...current,
+      [field]: trimmed ? `기타: ${trimmed}` : '',
+      [draftKey]: raw,
+    }))
+    setError('')
   }
 
   function chooseSingle<K extends keyof ApplicationAnswers>(key: K, value: ApplicationAnswers[K]) {
@@ -353,11 +405,14 @@ function App() {
     track('consent_accepted')
 
     const search = new URLSearchParams(window.location.search)
+    const { comfortableTimeOther: _comfortableTimeOther, difficultTimeOther: _difficultTimeOther, ...submittableAnswers } = answers
+    void _comfortableTimeOther
+    void _difficultTimeOther
     const payload = {
       action: 'submit',
       requestId,
       sessionId,
-      ...answers,
+      ...submittableAnswers,
       ...contact,
       displayName: contact.displayName.trim(),
       age: Number(contact.age),
@@ -402,6 +457,8 @@ function App() {
     setContactErrorField(null)
     setError('')
     setCopyStatus('')
+    setComfortableOtherMode(false)
+    setDifficultOtherMode(false)
     goToView({ kind: 'intro' }, 'backward')
   }
 
@@ -435,21 +492,30 @@ function App() {
     )
   }
 
-  function renderEnergyChoice(field: 'comfortableTime' | 'difficultTime', legend: string) {
+  function renderEnergyChoice(field: 'comfortableTime' | 'difficultTime') {
+    const isComfortable = field === 'comfortableTime'
+    const options = isComfortable ? energyBoostOptions : energyDrainOptions
     const value = answers[field]
+    const otherMode = isComfortable ? comfortableOtherMode : difficultOtherMode
+    const otherDraft = (isComfortable ? answers.comfortableTimeOther : answers.difficultTimeOther) ?? ''
+    const inputRef = isComfortable ? comfortableOtherInputRef : difficultOtherInputRef
+    const inputId = isComfortable ? 'comfortable-other-input' : 'difficult-other-input'
+    const inputLabel = isComfortable ? '힘이 나는 다른 순간' : '힘이 빠지는 다른 순간'
+    const inputPlaceholder = isComfortable ? '예: 음악을 들으며 걸을 때' : '예: 여러 약속이 이어질 때'
+    const legend = isComfortable ? '가장 힘이 나는 순간을 하나 골라주세요.' : '가장 힘이 빠지는 순간을 하나 골라주세요.'
 
     return (
       <fieldset className="question-fieldset" aria-describedby={error ? 'question-description question-error' : 'question-description'}>
-        <legend className="sr-only">{legend}을 하나 골라주세요.</legend>
+        <legend className="sr-only">{legend}</legend>
         <div className="chips-picker-row energy-time-row">
-          {energyTimeOptions.map((option) => {
-            const selected = value === option.label
+          {options.map((option) => {
+            const selected = !otherMode && value === option.label
             return (
               <label className={`choice-chip-btn ${selected ? 'is-selected' : ''}`} key={option.id}>
                 <input
                   checked={selected}
                   name={`energy-${field}`}
-                  onChange={() => selectEnergyTime(field, option.label)}
+                  onChange={() => selectEnergyPreset(field, option.label)}
                   type="radio"
                   value={option.id}
                 />
@@ -457,7 +523,35 @@ function App() {
               </label>
             )
           })}
+          <label className={`choice-chip-btn ${otherMode ? 'is-selected' : ''}`}>
+            <input
+              checked={otherMode}
+              name={`energy-${field}`}
+              onChange={() => selectEnergyOther(field)}
+              type="radio"
+              value="other"
+            />
+            <span>기타</span>
+          </label>
         </div>
+
+        {otherMode && (
+          <div className="energy-other-input">
+            <label className="field-label" htmlFor={inputId}>{inputLabel}</label>
+            <input
+              id={inputId}
+              ref={inputRef}
+              type="text"
+              maxLength={50}
+              aria-describedby={error ? 'question-error' : undefined}
+              aria-invalid={Boolean(error && !otherDraft.trim())}
+              className="notebook-text-input"
+              placeholder={inputPlaceholder}
+              value={otherDraft}
+              onChange={(e) => updateEnergyOtherDraft(field, e.target.value)}
+            />
+          </div>
+        )}
       </fieldset>
     )
   }
@@ -508,11 +602,11 @@ function App() {
     }
 
     if (index === 1) {
-      return renderEnergyChoice('comfortableTime', '힘이 나는 때')
+      return renderEnergyChoice('comfortableTime')
     }
 
     if (index === 2) {
-      return renderEnergyChoice('difficultTime', '지치는 때')
+      return renderEnergyChoice('difficultTime')
     }
 
     if (index === 3) {

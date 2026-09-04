@@ -2,20 +2,31 @@ import type {
   ChangeArea,
   ChoiceOption,
   DailyRhythm,
-  EnergyTimeSlot,
+  EnergyBoostMoment,
+  EnergyDrainMoment,
   PastPattern,
   PreferredDay,
   PreferredPeriod,
 } from './types'
 
-export const energyTimeOptions: Array<{ id: EnergyTimeSlot; label: string }> = [
-  { id: 'dawn', label: '새벽' },
-  { id: 'morning', label: '아침' },
-  { id: 'lunch', label: '점심' },
-  { id: 'evening', label: '저녁' },
-  { id: 'night', label: '밤' },
-  { id: 'commute', label: '출퇴근길' },
-  { id: 'varies', label: '매일 달라요' },
+export const energyBoostOptions: Array<{ id: EnergyBoostMoment; label: string }> = [
+  { id: 'slept_well', label: '푹 자고 일어난 뒤' },
+  { id: 'solo_focus', label: '혼자 집중할 때' },
+  { id: 'with_people', label: '사람들과 함께할 때' },
+  { id: 'moving_body', label: '몸을 움직일 때' },
+  { id: 'favorite_activity', label: '좋아하는 일을 할 때' },
+  { id: 'finished_task', label: '할 일을 마친 뒤' },
+  { id: 'varies', label: '날마다 달라요' },
+]
+
+export const energyDrainOptions: Array<{ id: EnergyDrainMoment; label: string }> = [
+  { id: 'lack_of_sleep', label: '잠이 부족할 때' },
+  { id: 'task_overload', label: '할 일이 몰릴 때' },
+  { id: 'long_focus', label: '오래 집중한 뒤' },
+  { id: 'many_people', label: '사람을 많이 만난 뒤' },
+  { id: 'long_commute', label: '이동 시간이 길 때' },
+  { id: 'no_rest', label: '쉬지 못할 때' },
+  { id: 'varies', label: '날마다 달라요' },
 ]
 
 export const dailyRhythmOptions: ChoiceOption<DailyRhythm>[] = [
