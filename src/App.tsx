@@ -441,7 +441,7 @@ function App() {
     return (
       <fieldset className="question-fieldset" aria-describedby={error ? 'question-description question-error' : 'question-description'}>
         <legend className="sr-only">{legend}을 하나 골라주세요.</legend>
-        <div className="energy-time-grid">
+        <div className="chips-picker-row energy-time-row">
           {energyTimeOptions.map((option) => {
             const selected = value === option.label
             return (
