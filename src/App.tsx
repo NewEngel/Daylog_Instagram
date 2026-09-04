@@ -94,6 +94,11 @@ function isOtherValue(value: string | undefined, options: Array<{ label: string 
   return Boolean(value?.trim()) && !options.some((option) => option.label === value)
 }
 
+function focusWithinChapter(el: HTMLElement | null) {
+  el?.focus()
+  el?.scrollIntoView({ block: 'nearest' })
+}
+
 function loadAnswers(): ApplicationAnswers {
   try {
     const stored = sessionStorage.getItem(ANSWERS_STORAGE_KEY)
@@ -191,12 +196,14 @@ function App() {
   const questionErrorRef = useRef<HTMLParagraphElement>(null)
   const comfortableOtherInputRef = useRef<HTMLInputElement>(null)
   const difficultOtherInputRef = useRef<HTMLInputElement>(null)
+  const chapterScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     sessionStorage.setItem(ANSWERS_STORAGE_KEY, JSON.stringify(answers))
   }, [answers])
 
   useEffect(() => {
+    chapterScrollRef.current?.scrollTo({ top: 0, behavior: 'instant' })
     headingRef.current?.focus()
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [view])
@@ -260,11 +267,11 @@ function App() {
     if (validationError) {
       setError(validationError)
       if (view.index === 1 && comfortableOtherMode) {
-        requestAnimationFrame(() => comfortableOtherInputRef.current?.focus())
+        requestAnimationFrame(() => focusWithinChapter(comfortableOtherInputRef.current))
       } else if (view.index === 2 && difficultOtherMode) {
-        requestAnimationFrame(() => difficultOtherInputRef.current?.focus())
+        requestAnimationFrame(() => focusWithinChapter(difficultOtherInputRef.current))
       } else {
-        requestAnimationFrame(() => questionErrorRef.current?.focus())
+        requestAnimationFrame(() => focusWithinChapter(questionErrorRef.current))
       }
       return
     }
@@ -305,10 +312,10 @@ function App() {
         setContactErrorField(validationError.field)
         setError(validationError.message)
         requestAnimationFrame(() => {
-          if (validationError.field === 'displayName') displayNameRef.current?.focus()
-          if (validationError.field === 'age') ageRef.current?.focus()
-          if (validationError.field === 'phoneNumber') phoneNumberRef.current?.focus()
-          if (validationError.field === 'nearbyStation') nearbyStationRef.current?.focus()
+          if (validationError.field === 'displayName') focusWithinChapter(displayNameRef.current)
+          if (validationError.field === 'age') focusWithinChapter(ageRef.current)
+          if (validationError.field === 'phoneNumber') focusWithinChapter(phoneNumberRef.current)
+          if (validationError.field === 'nearbyStation') focusWithinChapter(nearbyStationRef.current)
         })
         return
       }
@@ -323,8 +330,8 @@ function App() {
         setContactErrorField(validationError.field)
         setError(validationError.message)
         requestAnimationFrame(() => {
-          if (validationError.field === 'preferredDays') preferredDaysRef.current?.focus()
-          if (validationError.field === 'preferredPeriods') preferredPeriodsRef.current?.focus()
+          if (validationError.field === 'preferredDays') focusWithinChapter(preferredDaysRef.current)
+          if (validationError.field === 'preferredPeriods') focusWithinChapter(preferredPeriodsRef.current)
         })
         return
       }
@@ -349,7 +356,7 @@ function App() {
     const draft = (field === 'comfortableTime' ? answers.comfortableTimeOther : answers.difficultTimeOther) ?? ''
     chooseSingle(field, draft.trim() ? `기타: ${draft.trim()}` : '')
     const inputRef = field === 'comfortableTime' ? comfortableOtherInputRef : difficultOtherInputRef
-    requestAnimationFrame(() => inputRef.current?.focus())
+    requestAnimationFrame(() => focusWithinChapter(inputRef.current))
   }
 
   function updateEnergyOtherDraft(field: 'comfortableTime' | 'difficultTime', raw: string) {
@@ -389,13 +396,13 @@ function App() {
       setContactErrorField(validationError.field)
       setError(validationError.message)
       requestAnimationFrame(() => {
-        if (validationError.field === 'displayName') displayNameRef.current?.focus()
-        if (validationError.field === 'age') ageRef.current?.focus()
-        if (validationError.field === 'phoneNumber') phoneNumberRef.current?.focus()
-        if (validationError.field === 'nearbyStation') nearbyStationRef.current?.focus()
-        if (validationError.field === 'preferredDays') preferredDaysRef.current?.focus()
-        if (validationError.field === 'preferredPeriods') preferredPeriodsRef.current?.focus()
-        if (validationError.field === 'privacyConsent') consentRef.current?.focus()
+        if (validationError.field === 'displayName') focusWithinChapter(displayNameRef.current)
+        if (validationError.field === 'age') focusWithinChapter(ageRef.current)
+        if (validationError.field === 'phoneNumber') focusWithinChapter(phoneNumberRef.current)
+        if (validationError.field === 'nearbyStation') focusWithinChapter(nearbyStationRef.current)
+        if (validationError.field === 'preferredDays') focusWithinChapter(preferredDaysRef.current)
+        if (validationError.field === 'preferredPeriods') focusWithinChapter(preferredPeriodsRef.current)
+        if (validationError.field === 'privacyConsent') focusWithinChapter(consentRef.current)
       })
       return
     }
@@ -489,6 +496,24 @@ function App() {
         <mark className="heading-accent">{highlight}</mark>
         {title.slice(start + highlight.length)}
       </>
+    )
+  }
+
+  function renderContactHeader(step: 1 | 2 | 3) {
+    return (
+      <div className="contact-page-header">
+        <span className="contact-step-tag">06 · 신청 {step} / 3</span>
+        <h1 id="contact-title" ref={headingRef} tabIndex={-1} className="contact-main-heading">
+          {step === 1 && '기본 정보를 알려주세요.'}
+          {step === 2 && '가능한 일정을 골라주세요.'}
+          {step === 3 && '개인정보 동의 후 신청을 마쳐주세요.'}
+        </h1>
+        <p className="contact-lead-text">
+          {step === 1 && '연락과 만남 장소를 정하는 데 필요한 정보예요.'}
+          {step === 2 && '가능한 요일과 시간대를 모두 골라주세요. ‘상관없음’을 고르면 다른 항목은 선택할 수 없습니다.'}
+          {step === 3 && '신청 내용을 확인한 뒤 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.'}
+        </p>
+      </div>
     )
   }
 
@@ -726,31 +751,33 @@ function App() {
              ========================================================================= */}
           {view.kind === 'intro' && (
             <div className="notebook-page-content intro-page">
-              <div className="intro-header-badge">
-                <span aria-hidden="true">✦</span>
-                <span>나만의 하루 설계</span>
-              </div>
+              <div className="chapter-scroll-area" ref={chapterScrollRef}>
+                <div className="intro-header-badge">
+                  <span aria-hidden="true">✦</span>
+                  <span>나만의 하루 설계</span>
+                </div>
 
-              <div className="intro-headline-section">
-                <h1 id="intro-title" ref={headingRef} tabIndex={-1} className="intro-main-title">
-                  내 생활에 맞는 습관을<br />
-                  함께 찾아봐요.
-                </h1>
-                <p className="intro-sub-lead">
-                  데이로그는 60분 동안 직접 만나 요즘 생활을 듣고, 지금 시작할 행동 1~3개를 함께 정합니다.
-                </p>
-              </div>
+                <div className="intro-headline-section">
+                  <h1 id="intro-title" ref={headingRef} tabIndex={-1} className="intro-main-title">
+                    내 생활에 맞는 습관을<br />
+                    함께 찾아봐요.
+                  </h1>
+                  <p className="intro-sub-lead">
+                    데이로그는 60분 동안 직접 만나 요즘 생활을 듣고, 지금 시작할 행동 1~3개를 함께 정합니다.
+                  </p>
+                </div>
 
-              <div className="intro-purpose-card">
-                <span className="purpose-card-icon" aria-hidden="true">◎</span>
-                <p>정답을 찾는 설문이 아니에요. 지금의 생활을 짧게 정리하고, 나에게 맞는 시작을 함께 찾아요.</p>
-              </div>
+                <div className="intro-purpose-card">
+                  <span className="purpose-card-icon" aria-hidden="true">◎</span>
+                  <p>정답을 찾는 설문이 아니에요. 지금의 생활을 짧게 정리하고, 나에게 맞는 시작을 함께 찾아요.</p>
+                </div>
 
-              <ul className="intro-info-grid" aria-label="LIFE NOTE 진행 정보">
-                <li><span aria-hidden="true">▣</span><strong>{questionMeta.length}개 질문</strong><small>내 생활 돌아보기</small></li>
-                <li><span aria-hidden="true">◷</span><strong>약 3분</strong><small>부담 없이 시작</small></li>
-                <li><span aria-hidden="true">⌂</span><strong>대면 체험</strong><small>60분 1:1 대화</small></li>
-              </ul>
+                <ul className="intro-info-grid" aria-label="LIFE NOTE 진행 정보">
+                  <li><span aria-hidden="true">▣</span><strong>{questionMeta.length}개 질문</strong><small>내 생활 돌아보기</small></li>
+                  <li><span aria-hidden="true">◷</span><strong>약 3분</strong><small>부담 없이 시작</small></li>
+                  <li><span aria-hidden="true">⌂</span><strong>대면 체험</strong><small>60분 1:1 대화</small></li>
+                </ul>
+              </div>
 
               <div className="intro-cta-section">
                 <button className="notebook-primary-btn" type="button" onClick={startExperience}>
@@ -766,31 +793,33 @@ function App() {
              ========================================================================= */}
           {view.kind === 'question' && (
             <div className="notebook-page-content question-page">
-              {/* Question Heading Group */}
-              <div className="question-title-wrap">
-                <p className="question-kicker">{questionMeta[view.index].caption}</p>
-                <h1 id="question-title" ref={headingRef} tabIndex={-1} className="question-heading">
-                  {renderQuestionTitle(questionMeta[view.index].title, questionMeta[view.index].highlight)}
-                </h1>
-                <p className="question-sub-desc" id="question-description">{questionMeta[view.index].description}</p>
-              </div>
+              <div className="chapter-scroll-area" ref={chapterScrollRef}>
+                {/* Question Heading Group */}
+                <div className="question-title-wrap">
+                  <p className="question-kicker">{questionMeta[view.index].caption}</p>
+                  <h1 id="question-title" ref={headingRef} tabIndex={-1} className="question-heading">
+                    {renderQuestionTitle(questionMeta[view.index].title, questionMeta[view.index].highlight)}
+                  </h1>
+                  <p className="question-sub-desc" id="question-description">{questionMeta[view.index].description}</p>
+                </div>
 
-              {/* Interactive Form Component */}
-              <div className="question-body-section">
-                {renderQuestion(view.index)}
-              </div>
+                {/* Interactive Form Component */}
+                <div className="question-body-section">
+                  {renderQuestion(view.index)}
+                </div>
 
-              {error && (
-                <p
-                  className="notebook-error-msg"
-                  id="question-error"
-                  ref={questionErrorRef}
-                  role="alert"
-                  tabIndex={-1}
-                >
-                  ⚠️ {error}
-                </p>
-              )}
+                {error && (
+                  <p
+                    className="notebook-error-msg"
+                    id="question-error"
+                    ref={questionErrorRef}
+                    role="alert"
+                    tabIndex={-1}
+                  >
+                    ⚠️ {error}
+                  </p>
+                )}
+              </div>
 
               {/* Bottom Navigation Buttons */}
               <div className="question-actions-bar">
@@ -816,35 +845,37 @@ function App() {
              ========================================================================= */}
           {view.kind === 'session-info' && (
             <div className="notebook-page-content session-info-page">
-              <div className="session-info-header">
-                <span className="contact-step-tag">05 · 프로그램 안내</span>
-                <p className="session-info-kicker">60분 체험 프로그램</p>
-                <h1 id="session-info-title" ref={headingRef} tabIndex={-1} className="session-info-title">
-                  60분 동안 내 하루를 함께 살펴봐요.
-                </h1>
-                <p className="session-info-summary">직접 만나 1:1로 진행합니다.</p>
-                <p className="session-info-principle">정해진 행동을 권하지 않습니다.<br />요즘 생활을 먼저 듣고, 지금 시작할 행동을 함께 찾습니다.</p>
+              <div className="chapter-scroll-area" ref={chapterScrollRef}>
+                <div className="session-info-header">
+                  <span className="contact-step-tag">05 · 프로그램 안내</span>
+                  <p className="session-info-kicker">60분 체험 프로그램</p>
+                  <h1 id="session-info-title" ref={headingRef} tabIndex={-1} className="session-info-title">
+                    60분 동안 내 하루를 함께 살펴봐요.
+                  </h1>
+                  <p className="session-info-summary">직접 만나 1:1로 진행합니다.</p>
+                  <p className="session-info-principle">정해진 행동을 권하지 않습니다.<br />요즘 생활을 먼저 듣고, 지금 시작할 행동을 함께 찾습니다.</p>
+                </div>
+
+                <ol className="session-timeline" aria-label="60분 체험 프로그램 진행 순서">
+                  {[
+                    ['10분', '현재 하루 살펴보기', '요즘 하루를 어떻게 보내는지 이야기해요.'],
+                    ['15분', '내 이야기 나누기', '좋아하는 것, 싫어하는 것과 중요하게 생각하는 것을 이야기해요.'],
+                    ['15분', '바꾸고 싶은 점 정하기', '지금 바꾸고 싶은 생활을 정해요.'],
+                    ['10분', '반복되는 습관 찾기', '자주 반복되는 행동과 방해되는 것을 찾아요.'],
+                    ['10분', '첫 행동 정하기', '오늘부터 시작할 행동 1~3개를 함께 정해요.'],
+                  ].map(([time, title, description]) => (
+                    <li className="session-timeline-item" key={title}>
+                      <div>
+                        <strong>{title}</strong>
+                        <p>{description}</p>
+                      </div>
+                      <span className="session-time-badge">{time}</span>
+                    </li>
+                  ))}
+                </ol>
+
+                <p className="session-followup-note">첫 만남 7일 뒤, 해본 내용을 함께 확인합니다.</p>
               </div>
-
-              <ol className="session-timeline" aria-label="60분 체험 프로그램 진행 순서">
-                {[
-                  ['10분', '현재 하루 살펴보기', '요즘 하루를 어떻게 보내는지 이야기해요.'],
-                  ['15분', '내 이야기 나누기', '좋아하는 것, 싫어하는 것과 중요하게 생각하는 것을 이야기해요.'],
-                  ['15분', '바꾸고 싶은 점 정하기', '지금 바꾸고 싶은 생활을 정해요.'],
-                  ['10분', '반복되는 습관 찾기', '자주 반복되는 행동과 방해되는 것을 찾아요.'],
-                  ['10분', '첫 행동 정하기', '오늘부터 시작할 행동 1~3개를 함께 정해요.'],
-                ].map(([time, title, description]) => (
-                  <li className="session-timeline-item" key={title}>
-                    <div>
-                      <strong>{title}</strong>
-                      <p>{description}</p>
-                    </div>
-                    <span className="session-time-badge">{time}</span>
-                  </li>
-                ))}
-              </ol>
-
-              <p className="session-followup-note">첫 만남 7일 뒤, 해본 내용을 함께 확인합니다.</p>
 
               <div className="question-actions-bar">
                 <button className="notebook-secondary-btn" onClick={goBack} type="button">← 습관 선택으로 돌아가기</button>
@@ -861,28 +892,17 @@ function App() {
              ========================================================================= */}
           {view.kind === 'contact' && (
             <div className="notebook-page-content contact-page">
-              <div className="contact-page-header">
-                <span className="contact-step-tag">06 · 신청 {view.step} / 3</span>
-                <h1 id="contact-title" ref={headingRef} tabIndex={-1} className="contact-main-heading">
-                  {view.step === 1 && '기본 정보를 알려주세요.'}
-                  {view.step === 2 && '가능한 일정을 골라주세요.'}
-                  {view.step === 3 && '개인정보 동의 후 신청을 마쳐주세요.'}
-                </h1>
-                <p className="contact-lead-text">
-                  {view.step === 1 && '연락과 만남 장소를 정하는 데 필요한 정보예요.'}
-                  {view.step === 2 && '가능한 요일과 시간대를 모두 골라주세요. ‘상관없음’을 고르면 다른 항목은 선택할 수 없습니다.'}
-                  {view.step === 3 && '신청 내용을 확인한 뒤 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.'}
-                </p>
-              </div>
-
-              {error && (
-                <p className="notebook-error-msg contact-error-summary" id="contact-error" role="alert">
-                  ⚠️ {error}
-                </p>
-              )}
-
               {view.step === 1 && (
                 <form className="contact-form-sheet" onSubmit={(event) => { event.preventDefault(); goContactNext() }} noValidate>
+                <div className="chapter-scroll-area" ref={chapterScrollRef}>
+                  {renderContactHeader(1)}
+
+                  {error && (
+                    <p className="notebook-error-msg contact-error-summary" id="contact-error" role="alert">
+                      ⚠️ {error}
+                    </p>
+                  )}
+
                   <fieldset className={`form-group-card basic-info-card ${['displayName', 'age', 'phoneNumber', 'nearbyStation'].includes(contactErrorField ?? '') ? 'has-error' : ''}`}>
                     <legend className="sr-only">기본 정보</legend>
                     <div className="group-card-header">
@@ -979,6 +999,7 @@ function App() {
                       value={contact.website}
                     />
                   </label>
+                </div>
 
                   <div className="contact-actions-bar">
                     <button className="notebook-secondary-btn" onClick={goBack} type="button">
@@ -994,6 +1015,15 @@ function App() {
 
               {view.step === 2 && (
                 <form className="contact-form-sheet" onSubmit={(event) => { event.preventDefault(); goContactNext() }} noValidate>
+                <div className="chapter-scroll-area" ref={chapterScrollRef}>
+                  {renderContactHeader(2)}
+
+                  {error && (
+                    <p className="notebook-error-msg contact-error-summary" id="contact-error" role="alert">
+                      ⚠️ {error}
+                    </p>
+                  )}
+
                   <fieldset className={`form-group-card schedule-group ${contactErrorField === 'preferredDays' || contactErrorField === 'preferredPeriods' ? 'has-error' : ''}`}>
                     <legend className="sr-only">가능한 요일과 시간대</legend>
                     <div className="group-card-header">
@@ -1054,6 +1084,7 @@ function App() {
                       {contactErrorField === 'preferredPeriods' && <p className="field-error" id="contact-periods-error">{error}</p>}
                     </div>
                   </fieldset>
+                </div>
 
                   <div className="contact-actions-bar">
                     <button className="notebook-secondary-btn" onClick={goBack} type="button">
@@ -1069,6 +1100,15 @@ function App() {
 
               {view.step === 3 && (
                 <form className="contact-form-sheet" onSubmit={submitApplication} noValidate>
+                <div className="chapter-scroll-area" ref={chapterScrollRef}>
+                  {renderContactHeader(3)}
+
+                  {error && (
+                    <p className="notebook-error-msg contact-error-summary" id="contact-error" role="alert">
+                      ⚠️ {error}
+                    </p>
+                  )}
+
                   <div className={`privacy-consent-card ${contactErrorField === 'privacyConsent' ? 'has-error' : ''}`}>
                     <div className="group-card-header">
                       <span className="group-num-pill">03</span>
@@ -1108,6 +1148,7 @@ function App() {
                     </label>
                     {contactErrorField === 'privacyConsent' && <p className="field-error" id="contact-privacy-error">{error}</p>}
                   </div>
+                </div>
 
                   <div className="contact-actions-bar">
                     <button className="notebook-secondary-btn" onClick={goBack} type="button">
@@ -1128,47 +1169,49 @@ function App() {
              ========================================================================= */}
           {view.kind === 'success' && (
             <div className="notebook-page-content success-page">
-              <div className="success-stamp-seal" aria-hidden="true">
-                <span className="success-check">✓</span>
-              </div>
+              <div className="chapter-scroll-area" ref={chapterScrollRef}>
+                <div className="success-stamp-seal" aria-hidden="true">
+                  <span className="success-check">✓</span>
+                </div>
 
-              <div className="success-headline-wrap">
-                <span className="success-badge">신청 완료</span>
-                <h1 id="success-title" ref={headingRef} tabIndex={-1} className="success-title">
-                  신청이 완료됐어요.
-                </h1>
-                <p className="success-sub">
-                  신청 번호를 저장해 주세요. 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.
-                </p>
-              </div>
+                <div className="success-headline-wrap">
+                  <span className="success-badge">신청 완료</span>
+                  <h1 id="success-title" ref={headingRef} tabIndex={-1} className="success-title">
+                    신청이 완료됐어요.
+                  </h1>
+                  <p className="success-sub">
+                    신청 번호를 저장해 주세요. 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.
+                  </p>
+                </div>
 
-              <div className="success-receipt-card">
-                <div className="receipt-row-item">
-                  <span className="receipt-item-label">신청 번호</span>
-                  <div className="receipt-code-group">
-                    <strong className="receipt-item-val receipt-code">{view.requestId}</strong>
-                    <button className="receipt-copy-btn" type="button" onClick={copyApplicationNumber}>신청 번호 복사</button>
+                <div className="success-receipt-card">
+                  <div className="receipt-row-item">
+                    <span className="receipt-item-label">신청 번호</span>
+                    <div className="receipt-code-group">
+                      <strong className="receipt-item-val receipt-code">{view.requestId}</strong>
+                      <button className="receipt-copy-btn" type="button" onClick={copyApplicationNumber}>신청 번호 복사</button>
+                    </div>
+                  </div>
+                  <div className="receipt-row-item">
+                    <span className="receipt-item-label">이름</span>
+                    <strong className="receipt-item-val">{contact.displayName || '신청자'}님</strong>
+                  </div>
+                  <div className="receipt-row-item">
+                    <span className="receipt-item-label">프로그램</span>
+                    <strong className="receipt-item-val">60분 1:1 생활 세션</strong>
+                  </div>
+                  <div className="receipt-row-item">
+                    <span className="receipt-item-label">진행 장소</span>
+                    <strong className="receipt-item-val">연락할 때 장소를 함께 정해요.</strong>
+                  </div>
+                  <div className="receipt-row-item">
+                    <span className="receipt-item-label">준비물</span>
+                    <strong className="receipt-item-val">준비물 없음</strong>
                   </div>
                 </div>
-                <div className="receipt-row-item">
-                  <span className="receipt-item-label">이름</span>
-                  <strong className="receipt-item-val">{contact.displayName || '신청자'}님</strong>
-                </div>
-                <div className="receipt-row-item">
-                  <span className="receipt-item-label">프로그램</span>
-                  <strong className="receipt-item-val">60분 1:1 생활 세션</strong>
-                </div>
-                <div className="receipt-row-item">
-                  <span className="receipt-item-label">진행 장소</span>
-                  <strong className="receipt-item-val">연락할 때 장소를 함께 정해요.</strong>
-                </div>
-                <div className="receipt-row-item">
-                  <span className="receipt-item-label">준비물</span>
-                  <strong className="receipt-item-val">준비물 없음</strong>
-                </div>
-              </div>
 
-              <p className="copy-status" aria-live="polite">{copyStatus}</p>
+                <p className="copy-status" aria-live="polite">{copyStatus}</p>
+              </div>
 
               <div className="success-bottom-bar">
                 <button className="notebook-secondary-btn" onClick={restart} type="button">
