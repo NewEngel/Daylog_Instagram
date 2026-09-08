@@ -52,6 +52,6 @@ jobs:
             if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
             $DC up -d --build
             sleep 3
-            code=$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:3101/healthz || true)
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:3016/healthz || true)
             echo "healthz: $code"
             test "$code" = "200"
