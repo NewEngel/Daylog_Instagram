@@ -82,7 +82,6 @@ export type View =
 
 export type ChoiceOption<T extends string> = {
   id: T
-  marker: string
   title: string
   description?: string
 }

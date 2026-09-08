@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from 'react'
 import {
   changeAreaOptions,
   dailyRhythmOptions,
@@ -22,7 +22,7 @@ import type {
 } from './types'
 import './App.css'
 
-const FORM_VERSION = '2026.09.2'
+const FORM_VERSION = '2026.09.4'
 const SCHEMA_VERSION = 'daylog-life-session-v3'
 const ANSWERS_STORAGE_KEY = 'daylog-life-session-answers-v8'
 
@@ -166,6 +166,36 @@ function formatPhoneNumber(value: string) {
   if (digits.length <= 3) return digits
   if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+}
+
+function LineIcon({ name }: { name: 'sparkle' | 'chat' | 'clock' | 'people' | 'calendar' }) {
+  const paths: Record<typeof name, ReactNode> = {
+    sparkle: <><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6Z" /><path d="M21 2v4M19 4h4" /></>,
+    chat: <><path d="M16 4H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2v4l5-4h4a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z" /><path d="M21 9v10a2 2 0 0 1-2 2h-3" /></>,
+    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 6v6l4 3" /></>,
+    people: <><circle cx="9" cy="7" r="3" /><path d="M2 21v-3a7 7 0 0 1 14 0v3M17 4a3 3 0 0 1 0 6M19 14a6 6 0 0 1 3 5v2" /></>,
+    calendar: <><path d="M20 10V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6M7 2v5M16 2v5M3 10h17" /><circle cx="18" cy="18" r="4" /></>,
+  }
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
+}
+
+function AnswerChoice({ label, description, rank, input }: {
+  label: string
+  description?: string
+  rank?: number
+  input: ComponentProps<'input'>
+}) {
+  return (
+    <label className={`answer-choice ${input.checked ? 'is-selected' : ''}`}>
+      <input {...input} />
+      <span className="answer-choice-copy">
+        <span className="answer-choice-label">{label}</span>
+        {description && <span className="answer-choice-description">{description}</span>}
+      </span>
+      <span className="answer-choice-indicator" aria-hidden="true">{input.checked ? rank ?? '✓' : ''}</span>
+      {input.checked && rank && <span className="sr-only">{rank}순위</span>}
+    </label>
+  )
 }
 
 function App() {
@@ -502,7 +532,7 @@ function App() {
   function renderContactHeader(step: 1 | 2 | 3) {
     return (
       <div className="contact-page-header">
-        <span className="contact-step-tag">06 · 신청 {step} / 3</span>
+        <p className="question-kicker">{step === 1 ? '기본 정보' : step === 2 ? '가능한 일정' : '마지막 확인'}</p>
         <h1 id="contact-title" ref={headingRef} tabIndex={-1} className="contact-main-heading">
           {step === 1 && '기본 정보를 알려주세요.'}
           {step === 2 && '가능한 일정을 골라주세요.'}
@@ -510,7 +540,7 @@ function App() {
         </h1>
         <p className="contact-lead-text">
           {step === 1 && '연락과 만남 장소를 정하는 데 필요한 정보예요.'}
-          {step === 2 && '가능한 요일과 시간대를 모두 골라주세요. ‘상관없음’을 고르면 다른 항목은 선택할 수 없습니다.'}
+          {step === 2 && '가능한 요일과 시간대를 모두 골라주세요.'}
           {step === 3 && '신청 내용을 확인한 뒤 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.'}
         </p>
       </div>
@@ -532,32 +562,26 @@ function App() {
     return (
       <fieldset className="question-fieldset" aria-describedby={error ? 'question-description question-error' : 'question-description'}>
         <legend className="sr-only">{legend}</legend>
-        <div className="chips-picker-row energy-time-row">
+        <div className="answer-grid">
           {options.map((option) => {
             const selected = !otherMode && value === option.label
             return (
-              <label className={`choice-chip-btn ${selected ? 'is-selected' : ''}`} key={option.id}>
-                <input
-                  checked={selected}
-                  name={`energy-${field}`}
-                  onChange={() => selectEnergyPreset(field, option.label)}
-                  type="radio"
-                  value={option.id}
-                />
-                <span>{option.label}</span>
-              </label>
+              <AnswerChoice key={option.id} label={option.label} input={{
+                checked: selected,
+                name: `energy-${field}`,
+                onChange: () => selectEnergyPreset(field, option.label),
+                type: 'radio',
+                value: option.id,
+              }} />
             )
           })}
-          <label className={`choice-chip-btn ${otherMode ? 'is-selected' : ''}`}>
-            <input
-              checked={otherMode}
-              name={`energy-${field}`}
-              onChange={() => selectEnergyOther(field)}
-              type="radio"
-              value="other"
-            />
-            <span>기타</span>
-          </label>
+          <AnswerChoice label="기타" input={{
+            checked: otherMode,
+            name: `energy-${field}`,
+            onChange: () => selectEnergyOther(field),
+            type: 'radio',
+            value: 'other',
+          }} />
         </div>
 
         {otherMode && (
@@ -588,28 +612,18 @@ function App() {
     legend: string,
   ) {
     return (
-      <fieldset className="question-fieldset spiral-choice-list" aria-describedby={error ? 'question-description question-error' : 'question-description'}>
+      <fieldset className="question-fieldset answer-grid" aria-describedby={error ? 'question-description question-error' : 'question-description'}>
         <legend className="sr-only">{legend}</legend>
         {options.map((option) => {
           const isSelected = selected === option.id
           return (
-            <label className={`spiral-choice-card ${isSelected ? 'is-selected' : ''}`} key={option.id}>
-              <input
-                checked={isSelected}
-                name={`choice-${questionIndex}`}
-                onChange={() => onSelect(option.id)}
-                type="radio"
-                value={option.id}
-              />
-              <div className="spiral-radio-circle" aria-hidden="true">
-                <span className="spiral-radio-dot" />
-              </div>
-              <div className="spiral-choice-content">
-                <strong className="spiral-choice-title">{option.title}</strong>
-                {option.description && <span className="spiral-choice-desc">{option.description}</span>}
-              </div>
-              <span className="spiral-choice-tag" aria-hidden="true">{option.marker}</span>
-            </label>
+            <AnswerChoice key={option.id} label={option.title} description={option.description} input={{
+              checked: isSelected,
+              name: `choice-${questionIndex}`,
+              onChange: () => onSelect(option.id),
+              type: 'radio',
+              value: option.id,
+            }} />
           )
         })}
       </fieldset>
@@ -655,30 +669,17 @@ function App() {
               <span className="habit-count-help">1~3개 선택</span>
             </div>
 
-            <div className="habit-cards-grid">
+            <div className="answer-grid">
               {changeAreaOptions.map((option) => {
                 const selected = answers.changeAreas.includes(option.id)
                 const rank = answers.changeAreas.indexOf(option.id) + 1
                 return (
-                  <label className={`habit-grid-card ${selected ? 'is-selected' : ''}`} key={option.id}>
-                    <input
-                      checked={selected}
-                      onChange={() => toggleChangeArea(option.id)}
-                      type="checkbox"
-                      value={option.id}
-                    />
-                    <div className="habit-grid-top">
-                      <span className="habit-marker-badge" aria-hidden="true">{option.marker}</span>
-                      <div className="habit-checkbox-indicator" aria-hidden="true">
-                        <span>{selected ? rank : ''}</span>
-                      </div>
-                    </div>
-                    <div className="habit-grid-body">
-                      <strong className="habit-grid-title">{option.title}</strong>
-                      {option.description && <span className="habit-grid-desc">{option.description}</span>}
-                    </div>
-                    {selected && <span className="habit-primary-flag">{rank}순위</span>}
-                  </label>
+                  <AnswerChoice key={option.id} label={option.title} description={option.description} rank={rank} input={{
+                    checked: selected,
+                    onChange: () => toggleChangeArea(option.id),
+                    type: 'checkbox',
+                    value: option.id,
+                  }} />
                 )
               })}
             </div>
@@ -686,7 +687,7 @@ function App() {
           <p className="ranking-help-note" aria-live="polite">
             {answers.changeAreas.length === 0
               ? '가장 먼저 바꾸고 싶은 습관부터 눌러주세요.'
-              : `${answers.changeAreas.length}개를 골랐어요. 선택을 취소하면 다음 항목의 순서가 앞으로 당겨져요.`}
+              : `${answers.changeAreas.length}개를 골랐어요. 다시 누르면 선택이 취소돼요.`}
           </p>
         </div>
       )
@@ -695,7 +696,7 @@ function App() {
   }
 
   const stageLabel = view.kind === 'question'
-    ? `${view.index + 1} / ${questionMeta.length}`
+    ? `질문 ${view.index + 1} / ${questionMeta.length}`
     : view.kind === 'session-info'
       ? '프로그램 안내'
       : view.kind === 'contact'
@@ -704,11 +705,15 @@ function App() {
           ? '신청 완료'
           : '나만의 하루 설계'
 
-  const progressTotal = view.kind === 'question' ? questionMeta.length : view.kind === 'contact' ? 3 : 0
-  const progressCurrent = view.kind === 'question' ? view.index : view.kind === 'contact' ? view.step - 1 : -1
+  const progress = view.kind === 'question'
+    ? { current: view.index + 1, total: questionMeta.length, label: '생활 질문' }
+    : view.kind === 'contact'
+      ? { current: view.step, total: 3, label: '체험 신청' }
+      : null
 
   return (
     <div className="app-canvas">
+      <main className={`app-panel view-${view.kind}`}>
       <header className="app-header">
         <div className="desk-brand-group">
           <button className="desk-brand-btn" onClick={goToCover} type="button" aria-label="작성 내용을 유지하고 시작 화면으로 이동">
@@ -717,34 +722,17 @@ function App() {
           <span className="desk-brand-sep" aria-hidden="true">/</span>
           <span className="desk-brand-title">LIFE NOTE</span>
         </div>
-        <span className="app-stage-label">{stageLabel}</span>
+        <span className="sr-only">{stageLabel}</span>
       </header>
 
-      {(view.kind === 'question' || view.kind === 'contact') && (
-        <div
-          className="question-progress"
-          style={{ '--progress-steps': progressTotal } as CSSProperties}
-          role="progressbar"
-          aria-label={
-            view.kind === 'question'
-              ? `현재 ${view.index + 1}번째 질문, 전체 ${questionMeta.length}개`
-              : `신청 정보 입력 ${view.step}번째, 전체 3개`
-          }
-          aria-valuemin={1}
-          aria-valuemax={progressTotal}
-          aria-valuenow={progressCurrent + 1}
-        >
-          {Array.from({ length: progressTotal }, (_, step) => (
-            <span
-              className={`progress-segment ${step < progressCurrent ? 'is-complete' : step === progressCurrent ? 'is-current' : ''}`}
-              key={step}
-              aria-hidden="true"
-            />
-          ))}
+      {progress && (
+        <div className="chapter-progress">
+          <div className="chapter-progress-label"><span>{progress.current} / {progress.total}</span><span>{progress.label}</span></div>
+          <div className="chapter-progress-track" role="progressbar" aria-label={progress.label} aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.current}>
+            <span style={{ width: `${progress.current / progress.total * 100}%` }} />
+          </div>
         </div>
       )}
-
-      <main className={`app-panel view-${view.kind}`}>
 
           {/* =========================================================================
               VIEW: INTRO (Cover & Introduction Page)
@@ -753,36 +741,31 @@ function App() {
             <div className="notebook-page-content intro-page">
               <div className="chapter-scroll-area" ref={chapterScrollRef}>
                 <div className="intro-header-badge">
-                  <span aria-hidden="true">✦</span>
                   <span>나만의 하루 설계</span>
                 </div>
 
                 <div className="intro-headline-section">
                   <h1 id="intro-title" ref={headingRef} tabIndex={-1} className="intro-main-title">
                     내 생활에 맞는 습관을<br />
-                    함께 찾아봐요.
+                    함께 찾아봐요
                   </h1>
-                  <p className="intro-sub-lead">
-                    데이로그는 60분 동안 직접 만나 요즘 생활을 듣고, 지금 시작할 행동 1~3개를 함께 정합니다.
-                  </p>
                 </div>
 
                 <div className="intro-purpose-card">
-                  <span className="purpose-card-icon" aria-hidden="true">◎</span>
-                  <p>정답을 찾는 설문이 아니에요. 지금의 생활을 짧게 정리하고, 나에게 맞는 시작을 함께 찾아요.</p>
+                  <span className="purpose-card-icon"><LineIcon name="sparkle" /></span>
+                  <p>요즘의 하루를 짧게 돌아보고,<br />직접 만나 함께 시작할 변화를 찾아요.</p>
                 </div>
 
                 <ul className="intro-info-grid" aria-label="LIFE NOTE 진행 정보">
-                  <li><span aria-hidden="true">▣</span><strong>{questionMeta.length}개 질문</strong><small>내 생활 돌아보기</small></li>
-                  <li><span aria-hidden="true">◷</span><strong>약 3분</strong><small>부담 없이 시작</small></li>
-                  <li><span aria-hidden="true">⌂</span><strong>대면 체험</strong><small>60분 1:1 대화</small></li>
+                  <li><LineIcon name="chat" /><strong>{questionMeta.length}개 질문</strong></li>
+                  <li><LineIcon name="clock" /><strong>약 3분</strong></li>
+                  <li><LineIcon name="people" /><strong>대면 체험 신청</strong></li>
                 </ul>
               </div>
 
               <div className="intro-cta-section">
                 <button className="notebook-primary-btn" type="button" onClick={startExperience}>
                   <span className="btn-label-text">내 하루 기록 시작하기</span>
-                  <span aria-hidden="true">→</span>
                 </button>
               </div>
             </div>
@@ -824,7 +807,7 @@ function App() {
               {/* Bottom Navigation Buttons */}
               <div className="question-actions-bar">
                 <button className="notebook-secondary-btn" onClick={goBack} type="button">
-                  ← {view.index === 0 ? '시작 화면으로 돌아가기' : '이전 질문 보기'}
+                  ← {view.index === 0 ? '처음' : '이전'}
                 </button>
                 <button
                   className="notebook-primary-btn notebook-primary-btn--compact"
@@ -847,13 +830,16 @@ function App() {
             <div className="notebook-page-content session-info-page">
               <div className="chapter-scroll-area" ref={chapterScrollRef}>
                 <div className="session-info-header">
-                  <span className="contact-step-tag">05 · 프로그램 안내</span>
                   <p className="session-info-kicker">60분 체험 프로그램</p>
                   <h1 id="session-info-title" ref={headingRef} tabIndex={-1} className="session-info-title">
                     60분 동안 내 하루를 함께 살펴봐요.
                   </h1>
                   <p className="session-info-summary">직접 만나 1:1로 진행합니다.</p>
-                  <p className="session-info-principle">정해진 행동을 권하지 않습니다.<br />요즘 생활을 먼저 듣고, 지금 시작할 행동을 함께 찾습니다.</p>
+                  <div className="session-example-card">
+                    <p className="question-kicker">함께 정할 작은 행동 · 예시</p>
+                    <strong>“점심을 먹고, 10분 걸어보기”</strong>
+                    <p>요즘 생활을 듣고, 내 하루에 맞는 행동을 함께 정해요.</p>
+                  </div>
                 </div>
 
                 <ol className="session-timeline" aria-label="60분 체험 프로그램 진행 순서">
@@ -878,7 +864,7 @@ function App() {
               </div>
 
               <div className="question-actions-bar">
-                <button className="notebook-secondary-btn" onClick={goBack} type="button">← 습관 선택으로 돌아가기</button>
+                <button className="notebook-secondary-btn" onClick={goBack} type="button">← 이전</button>
                 <button className="notebook-primary-btn notebook-primary-btn--compact" onClick={beginApplication} type="button">
                   <span className="btn-label-text">신청 정보 입력하기</span>
                   <span className="btn-circle-arrow" aria-hidden="true">→</span>
@@ -905,13 +891,6 @@ function App() {
 
                   <fieldset className={`form-group-card basic-info-card ${['displayName', 'age', 'phoneNumber', 'nearbyStation'].includes(contactErrorField ?? '') ? 'has-error' : ''}`}>
                     <legend className="sr-only">기본 정보</legend>
-                    <div className="group-card-header">
-                      <span className="group-num-pill">01</span>
-                      <div>
-                        <strong className="group-title">기본 정보 <em className="star-required">*</em></strong>
-                        <p className="group-sub">연락과 만남 장소를 정하는 데 필요한 정보예요.</p>
-                      </div>
-                    </div>
 
                     <div className="contact-fields-grid">
                       <div className="field-block">
@@ -1003,7 +982,7 @@ function App() {
 
                   <div className="contact-actions-bar">
                     <button className="notebook-secondary-btn" onClick={goBack} type="button">
-                      ← 프로그램 안내로 돌아가기
+                      ← 이전
                     </button>
                     <button className="notebook-primary-btn" type="submit">
                       <span className="btn-label-text">다음</span>
@@ -1026,33 +1005,25 @@ function App() {
 
                   <fieldset className={`form-group-card schedule-group ${contactErrorField === 'preferredDays' || contactErrorField === 'preferredPeriods' ? 'has-error' : ''}`}>
                     <legend className="sr-only">가능한 요일과 시간대</legend>
-                    <div className="group-card-header">
-                      <span className="group-num-pill">02</span>
-                      <div>
-                      <strong className="group-title">가능한 일정 <em className="star-required">*</em></strong>
-                        <p className="group-sub">가능한 항목을 모두 골라주세요. ‘상관없음’ 항목을 고르면 다른 항목은 선택할 수 없습니다.</p>
-                      </div>
-                    </div>
 
+                    <p className="schedule-help">일정이 자유롭다면 ‘상관없음’을 골라주세요.</p>
                     <div className="schedule-picker-section">
                       <strong className="sub-field-label">가능 요일</strong>
-                      <div className="chips-picker-row">
+                      <div className="answer-grid">
                         {preferredDayOptions.map((option, index) => {
                           const isSelected = contact.preferredDays.includes(option.id)
                           return (
-                            <label className={`choice-chip-btn ${isSelected ? 'is-selected' : ''}`} key={option.id}>
-                              <input
-                                checked={isSelected}
-                                aria-describedby={contactErrorField === 'preferredDays' ? 'contact-days-error' : undefined}
-                                aria-invalid={contactErrorField === 'preferredDays'}
-                                onChange={() => updateContact({
-                                  preferredDays: toggleExclusive<PreferredDay>(contact.preferredDays, option.id, 'flexible'),
-                                })}
-                                ref={index === 0 ? preferredDaysRef : undefined}
-                                type="checkbox"
-                              />
-                              <span>{option.label}</span>
-                            </label>
+                            <AnswerChoice key={option.id} label={option.label} input={{
+                              checked: isSelected,
+                              'aria-describedby': contactErrorField === 'preferredDays' ? 'contact-days-error' : undefined,
+                              'aria-invalid': contactErrorField === 'preferredDays',
+                              onChange: () => updateContact({
+                                preferredDays: toggleExclusive<PreferredDay>(contact.preferredDays, option.id, 'flexible'),
+                              }),
+                              ref: index === 0 ? preferredDaysRef : undefined,
+                              type: 'checkbox',
+                              value: option.id,
+                            }} />
                           )
                         })}
                       </div>
@@ -1061,23 +1032,21 @@ function App() {
 
                     <div className="schedule-picker-section">
                       <strong className="sub-field-label">가능 시간대</strong>
-                      <div className="chips-picker-row">
+                      <div className="answer-grid">
                         {preferredPeriodOptions.map((option, index) => {
                           const isSelected = contact.preferredPeriods.includes(option.id)
                           return (
-                            <label className={`choice-chip-btn ${isSelected ? 'is-selected' : ''}`} key={option.id}>
-                              <input
-                                checked={isSelected}
-                                aria-describedby={contactErrorField === 'preferredPeriods' ? 'contact-periods-error' : undefined}
-                                aria-invalid={contactErrorField === 'preferredPeriods'}
-                                onChange={() => updateContact({
-                                  preferredPeriods: toggleExclusive<PreferredPeriod>(contact.preferredPeriods, option.id, 'flexible'),
-                                })}
-                                ref={index === 0 ? preferredPeriodsRef : undefined}
-                                type="checkbox"
-                              />
-                              <span>{option.label}</span>
-                            </label>
+                            <AnswerChoice key={option.id} label={option.label} input={{
+                              checked: isSelected,
+                              'aria-describedby': contactErrorField === 'preferredPeriods' ? 'contact-periods-error' : undefined,
+                              'aria-invalid': contactErrorField === 'preferredPeriods',
+                              onChange: () => updateContact({
+                                preferredPeriods: toggleExclusive<PreferredPeriod>(contact.preferredPeriods, option.id, 'flexible'),
+                              }),
+                              ref: index === 0 ? preferredPeriodsRef : undefined,
+                              type: 'checkbox',
+                              value: option.id,
+                            }} />
                           )
                         })}
                       </div>
@@ -1088,7 +1057,7 @@ function App() {
 
                   <div className="contact-actions-bar">
                     <button className="notebook-secondary-btn" onClick={goBack} type="button">
-                      ← 기본 정보로 돌아가기
+                      ← 이전
                     </button>
                     <button className="notebook-primary-btn" type="submit">
                       <span className="btn-label-text">다음</span>
@@ -1110,13 +1079,6 @@ function App() {
                   )}
 
                   <div className={`privacy-consent-card ${contactErrorField === 'privacyConsent' ? 'has-error' : ''}`}>
-                    <div className="group-card-header">
-                      <span className="group-num-pill">03</span>
-                      <div>
-                        <strong className="group-title">개인정보 동의 <em className="star-required">*</em></strong>
-                        <p className="group-sub">수집 내용과 보유 기간을 확인해 주세요.</p>
-                      </div>
-                    </div>
                     <div className="privacy-policy-copy">
                       <strong className="consent-title">개인정보 수집 및 이용 안내</strong>
                       <dl className="privacy-policy-list">
@@ -1152,7 +1114,7 @@ function App() {
 
                   <div className="contact-actions-bar">
                     <button className="notebook-secondary-btn" onClick={goBack} type="button">
-                      ← 가능한 일정으로 돌아가기
+                      ← 이전
                     </button>
                     <button className="notebook-primary-btn" disabled={submitting} type="submit">
                       <span className="btn-label-text">{submitting ? '신청 내용을 보내고 있어요. 다시 누르지 마세요.' : '이 내용으로 신청하기'}</span>
@@ -1175,16 +1137,25 @@ function App() {
                 </div>
 
                 <div className="success-headline-wrap">
-                  <span className="success-badge">신청 완료</span>
                   <h1 id="success-title" ref={headingRef} tabIndex={-1} className="success-title">
-                    신청이 완료됐어요.
+                    신청이 완료됐어요
                   </h1>
                   <p className="success-sub">
-                    신청 번호를 저장해 주세요. 전화 또는 문자로 가능한 날짜와 시간을 함께 정합니다.
+                    이제 직접 만나 함께 살펴볼게요.
                   </p>
                 </div>
 
-                <div className="success-receipt-card">
+                <div className="success-art" aria-hidden="true">
+                  {Array.from({ length: 9 }, (_, index) => <span key={index} />)}
+                </div>
+                <div className="success-schedule-note">
+                  <LineIcon name="calendar" />
+                  <p>체험 일정은 담당자가<br />전화 또는 문자로 개별 안내드릴게요.</p>
+                </div>
+
+                <details className="success-receipt-details">
+                  <summary>신청 내역 · 접수번호 확인</summary>
+                  <div className="success-receipt-card">
                   <div className="receipt-row-item">
                     <span className="receipt-item-label">신청 번호</span>
                     <div className="receipt-code-group">
@@ -1211,6 +1182,7 @@ function App() {
                 </div>
 
                 <p className="copy-status" aria-live="polite">{copyStatus}</p>
+                </details>
               </div>
 
               <div className="success-bottom-bar">
