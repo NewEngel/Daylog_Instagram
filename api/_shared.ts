@@ -159,12 +159,14 @@ export async function forwardToAppsScript(payload: Record<string, unknown>): Pro
     throw new RequestError('지금은 신청 기능을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.', 503)
   }
 
-  const configuredTimeout = Number(process.env.APPS_SCRIPT_TIMEOUT_MS || 9000)
+  const configuredTimeout = Number(process.env.APPS_SCRIPT_TIMEOUT_MS || 30000)
   const timeoutMs = Number.isFinite(configuredTimeout)
-    ? Math.min(Math.max(configuredTimeout, 3000), 15000)
-    : 9000
+    ? Math.min(Math.max(configuredTimeout, 3000), 60000)
+    : 30000
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const startedAt = Date.now()
+  let failureReason = 'upstream_network_error'
 
   try {
     const result = await fetch(parsedUrl, {
@@ -175,16 +177,35 @@ export async function forwardToAppsScript(payload: Record<string, unknown>): Pro
       signal: controller.signal,
     })
 
-    if (!result.ok) throw new Error(`upstream_status_${result.status}`)
+    if (!result.ok) {
+      failureReason = `upstream_status_${result.status}`
+      throw new Error(failureReason)
+    }
+    failureReason = 'invalid_upstream_response'
     const body = (await result.json()) as unknown
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('invalid_upstream_response')
     const response = body as ForwardResult
-    if (response.ok !== true) throw new Error('upstream_rejected')
-    if (response.schemaVersion !== DAYLOG_LIFE_SESSION_SCHEMA_VERSION) throw new Error('upstream_schema_mismatch')
+    if (response.ok !== true) {
+      // Only known codes may enter logs; upstream messages can contain private data.
+      const knownErrors = ['unauthorized', 'unknown_form_type', 'server_error']
+      failureReason = typeof response.error === 'string' && knownErrors.includes(response.error)
+        ? `upstream_rejected_${response.error}`
+        : 'upstream_rejected'
+      throw new Error(failureReason)
+    }
+    if (response.schemaVersion !== DAYLOG_LIFE_SESSION_SCHEMA_VERSION) {
+      failureReason = 'upstream_schema_mismatch'
+      throw new Error(failureReason)
+    }
     return response
-  } catch (error) {
-    console.error('daylog_apps_script_forward_failed', error instanceof Error ? error.message : 'unknown')
-    throw new RequestError('신청 내용을 보내지 못했어요. 입력한 내용을 확인한 뒤 다시 시도해 주세요.', 502)
+  } catch {
+    console.error('daylog_apps_script_forward_failed', {
+      reason: controller.signal.aborted ? 'upstream_timeout' : failureReason,
+      action: payload.action === 'submit' ? 'submit' : payload.action === 'track' ? 'track' : 'unknown',
+      elapsedMs: Date.now() - startedAt,
+      timeoutMs,
+    })
+    throw new RequestError('서버 연결이 원활하지 않아 신청 완료를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.', 502)
   } finally {
     clearTimeout(timeout)
   }

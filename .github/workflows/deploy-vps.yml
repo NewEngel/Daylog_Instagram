@@ -46,7 +46,7 @@ jobs:
             GOOGLE_APPS_SCRIPT_URL=${GAS_URL:-}
             GOOGLE_APPS_SCRIPT_SHARED_SECRET=${GAS_SECRET:-}
             DAYLOG_FORM_TYPE=daylog_life_session
-            APPS_SCRIPT_TIMEOUT_MS=9000
+            APPS_SCRIPT_TIMEOUT_MS=30000
             EOF
 
             if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi
