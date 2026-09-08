@@ -21,7 +21,7 @@
 - 호스트 nginx(비컨테이너)가 80/443 종단. 서브도메인별 `/etc/nginx/conf.d/*.conf` 또는 `/etc/nginx/sites-available/*`(+ sites-enabled 심링크) 사용.
 - TLS: **certbot(Let's Encrypt)**, 서브도메인별 인증서(`/etc/letsencrypt/live/<sub>/`). `certbot` 설치됨.
 - 컨테이너는 `127.0.0.1:PORT`에 바인딩 → nginx가 `proxy_pass`로 연결(mimo: 3000, choseong: 3200 등).
-- **포트 3100은 미사용** → daylog가 사용.
+- **포트 3016은 미사용** → daylog가 사용.
 - DNS: `mimo.hannah-log.site`는 Cloudflare 프록시(orange, 104.21.x / 172.67.x)로 응답. `daylog.hannah-log.site`는 미등록, 와일드카드 없음.
 
 ## 3. 설계
@@ -77,7 +77,7 @@ services:
     environment:
       PORT: 3000
     ports:
-      - "127.0.0.1:3100:3000"
+      - "127.0.0.1:3016:3000"
 ```
 
 postgres 등 부가 서비스 없음(앱은 Apps Script로만 통신). `.env`는 VPS에만 두고 커밋하지 않는다.
@@ -108,7 +108,7 @@ APPS_SCRIPT_TIMEOUT_MS=9000
 1. Cloudflare DNS: `daylog A 115.71.239.106` 추가(**사용자가 직접**). 프록시(orange)/DNS-only(grey)는 사용자 선택.
 2. nginx 서버블록 `/etc/nginx/conf.d/daylog.conf`(기존 서브도메인과 동일 패턴):
    - 80: certbot 챌린지 + 443 리다이렉트
-   - 443 ssl: `proxy_pass http://127.0.0.1:3100;`, `proxy_set_header Host/X-Forwarded-For/X-Forwarded-Proto`.
+   - 443 ssl: `proxy_pass http://127.0.0.1:3016;`, `proxy_set_header Host/X-Forwarded-For/X-Forwarded-Proto`.
      - **주의**: 핸들러의 rate limit이 `x-forwarded-for` 첫 IP를 사용하므로 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`를 반드시 설정.
 3. certbot 발급: `certbot --nginx -d daylog.hannah-log.site`.
    - Cloudflare 프록시(orange) 상태에서 HTTP-01이 실패하면, DNS를 잠시 grey(DNS only)로 내려 발급 후 다시 orange로 전환(fallback).
@@ -137,8 +137,8 @@ APPS_SCRIPT_TIMEOUT_MS=9000
 
 ```
 브라우저 → https://daylog.hannah-log.site (Cloudflare) → VPS nginx :443
-  → (정적)  127.0.0.1:3100 daylog-app → dist/ 파일
-  → (/api/*) 127.0.0.1:3100 daylog-app → server.mjs → handler → fetch → script.google.com/exec
+  → (정적)  127.0.0.1:3016 daylog-app → dist/ 파일
+  → (/api/*) 127.0.0.1:3016 daylog-app → server.mjs → handler → fetch → script.google.com/exec
 ```
 
 ## 5. 테스트 / 검증

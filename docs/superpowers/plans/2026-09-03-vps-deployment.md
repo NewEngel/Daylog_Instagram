@@ -4,7 +4,7 @@
 
 **Goal:** Vercel 서버리스 전제로 만들어진 데이로그 신청폼을 개인 VPS(`115.71.239.106`)에 정적 프론트 + 동작하는 API로 배포한다.
 
-**Architecture:** 의존성 없는 초경량 Node HTTP 어댑터(`server.mjs`)가 `dist/` 정적 파일을 서빙하고 `/api/daylog/*` 요청을 컴파일된 Vercel 스타일 핸들러로 라우팅한다. Docker multi-stage로 빌드하고, VPS의 호스트 nginx가 `daylog.hannah-log.site`(certbot TLS) → `127.0.0.1:3100` 컨테이너로 리버스 프록시한다.
+**Architecture:** 의존성 없는 초경량 Node HTTP 어댑터(`server.mjs`)가 `dist/` 정적 파일을 서빙하고 `/api/daylog/*` 요청을 컴파일된 Vercel 스타일 핸들러로 라우팅한다. Docker multi-stage로 빌드하고, VPS의 호스트 nginx가 `daylog.hannah-log.site`(certbot TLS) → `127.0.0.1:3016` 컨테이너로 리버스 프록시한다.
 
 **Tech Stack:** Node 20, TypeScript(기존), Vite 8, `node:http`(런타임 의존성 0), Docker + docker-compose, nginx + certbot.
 
@@ -17,7 +17,7 @@
 - 앱 소스(`src/`, `api/`) **동작 변경 금지** — 배포 인프라만 추가. `api/_shared.ts`, `api/daylog/*.ts`는 읽기만.
 - 기존 `package.json` 스크립트는 불변, `build:server`만 추가. `.github/workflows/deploy-pages.yml` 건드리지 않음.
 - 스키마 버전 문자열은 정확히 `daylog-life-session-v3`.
-- 컨테이너 내부 포트 **3000**, VPS 바인딩 **`127.0.0.1:3100:3000`**.
+- 컨테이너 내부 포트 **3000**, VPS 바인딩 **`127.0.0.1:3016:3000`**.
 - 도메인 **`daylog.hannah-log.site`**.
 - 시크릿(`.env`)은 커밋 금지(`.gitignore`가 이미 `.env`/`.env.*` 제외).
 - 임시 파일은 `/tmp`가 아닌 프로젝트 내부 `.claude/tmp/` 사용(EDR 정책).
@@ -609,7 +609,7 @@ git commit -m "test: add API integration tests (real handlers, mocked fetch)"
 - Create: `Dockerfile`, `.dockerignore`, `docker-compose.yml`
 
 **Interfaces:**
-- Produces: `daylog-web` 이미지(런타임 `node:20-alpine`, `CMD node server.mjs`, `EXPOSE 3000`), `docker compose up -d --build`로 `127.0.0.1:3100:3000` 기동.
+- Produces: `daylog-web` 이미지(런타임 `node:20-alpine`, `CMD node server.mjs`, `EXPOSE 3000`), `docker compose up -d --build`로 `127.0.0.1:3016:3000` 기동.
 
 - [ ] **Step 1: `Dockerfile` 작성**
 
@@ -665,7 +665,7 @@ services:
     environment:
       PORT: 3000
     ports:
-      - "127.0.0.1:3100:3000"
+      - "127.0.0.1:3016:3000"
 ```
 
 - [ ] **Step 4: 로컬 이미지 빌드**
@@ -708,7 +708,7 @@ git commit -m "feat: add Docker multi-stage build and compose for VPS deployment
 ````markdown
 # 데이로그 신청폼 — VPS 배포 절차
 
-대상: `115.71.239.106`, 도메인 `daylog.hannah-log.site`, 컨테이너 포트 `127.0.0.1:3100:3000`.
+대상: `115.71.239.106`, 도메인 `daylog.hannah-log.site`, 컨테이너 포트 `127.0.0.1:3016:3000`.
 
 ## 0. 사전 조건 (사용자)
 
@@ -744,7 +744,7 @@ APPS_SCRIPT_TIMEOUT_MS=9000
 cd /root/daylog
 docker compose up -d --build
 docker compose ps
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/healthz   # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3016/healthz   # 200
 ```
 
 ## 4. nginx 서버블록 (`/etc/nginx/conf.d/daylog.conf`)
@@ -757,7 +757,7 @@ server {
     listen [::]:80;
     server_name daylog.hannah-log.site;
     location / {
-        proxy_pass http://127.0.0.1:3100;
+        proxy_pass http://127.0.0.1:3016;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -778,7 +778,7 @@ certbot --nginx -d daylog.hannah-log.site
 certbot 이 443 ssl 블록과 80→443 리다이렉트를 자동 삽입한다. 발급 후 `/etc/nginx/conf.d/daylog.conf` 의 **443 `location /`** 블록에 아래 헤더가 포함돼 있는지 확인(없으면 추가):
 
 ```nginx
-        proxy_pass http://127.0.0.1:3100;
+        proxy_pass http://127.0.0.1:3016;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

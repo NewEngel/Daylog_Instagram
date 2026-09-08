@@ -5,8 +5,12 @@ services:
     image: daylog-web:latest
     container_name: daylog-app
     restart: unless-stopped
-    env_file: .env
+    # 기존 VPS와 동일한 네트워크 설정 (00_VPS_공통_배포_가이드 3.3)
+    network_mode: bridge
+    # 배포 시 /root/daylog 가 비워지므로 시크릿은 배포 경로 밖에 둔다
+    env_file:
+      - /etc/daylog/app.env
     environment:
       PORT: 3000
     ports:
-      - "127.0.0.1:3101:3000"
+      - "127.0.0.1:3016:3000"
