@@ -11,13 +11,13 @@ main push → GitHub Actions → VPS에서 `git pull` → Docker 빌드·재시�
 | `<OWNER>/<REPO>` | `NewEngel/Daylog_Instagram` |
 | `<PORT>` (호스트) | `3016` |
 | `<APP_PORT>` (컨테이너) | `3000` |
-| `<DOMAIN>` | `daylog.hannah-log.site` |
+| `<DOMAIN>` | `apply.day-log.co.kr` |
 | `<HEALTH_PATH>` | `/healthz` |
 | VPS / SSH | `115.71.239.106` / `root:22` |
 | 배포 경로 | `/root/daylog` |
 | 컨테이너명 | `daylog-app` (기존 유지) |
 | 시크릿 | GitHub Actions secrets → 배포 시 `/root/daylog/.env` 생성 |
-| nginx 설정 | `/etc/nginx/conf.d/daylog.hannah-log.site.conf` |
+| nginx 설정 | `/etc/nginx/conf.d/apply.day-log.co.kr.conf` |
 
 저장소에 이미 반영된 파일: `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `.github/workflows/deploy-vps.yml`.
 
@@ -76,20 +76,20 @@ GitHub **Actions → Deploy to VPS → Run workflow → main**. 이후 main push
 
 ## 6. 도메인과 HTTPS
 
-Cloudflare DNS: A 레코드 `daylog` → `115.71.239.106`. 최초 발급은 DNS only(grey)로 두는 편이 확인하기 쉽다.
+`day-log.co.kr` DNS에 A 레코드 `apply` → `115.71.239.106`을 등록합니다.
 
 ```bash
-dig +short A daylog.hannah-log.site
+dig +short A apply.day-log.co.kr
 ```
 
-`/etc/nginx/conf.d/daylog.hannah-log.site.conf`가 없으면 80 전용 블록으로 시작한다.
+`/etc/nginx/conf.d/apply.day-log.co.kr.conf`가 없으면 80 전용 블록으로 시작한다.
 기존 HTTPS 설정이 있으면 덮어쓰지 말고 확인만 한다.
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name daylog.hannah-log.site;
+    server_name apply.day-log.co.kr;
 
     location / {
         proxy_pass http://127.0.0.1:3016;
@@ -103,7 +103,7 @@ server {
 
 ```bash
 nginx -t && systemctl reload nginx
-certbot --nginx -d daylog.hannah-log.site --redirect
+certbot --nginx -d apply.day-log.co.kr --redirect
 ```
 
 certbot이 443 블록과 리다이렉트를 삽입한 뒤, **443 `location /`에도 위 proxy 헤더가 그대로 있는지 확인한다.**
@@ -111,7 +111,7 @@ certbot이 443 블록과 리다이렉트를 삽입한 뒤, **443 `location /`에
 
 ```bash
 certbot certificates
-certbot renew --cert-name daylog.hannah-log.site --dry-run
+certbot renew --cert-name apply.day-log.co.kr --dry-run
 systemctl list-timers --all | grep -i certbot
 nginx -t && systemctl reload nginx
 ```
@@ -125,8 +125,8 @@ docker logs --tail 100 daylog-app
 curl -I http://127.0.0.1:3016/healthz
 
 # 로컬 PC
-curl -I https://daylog.hannah-log.site/healthz   # 200
-curl -I http://daylog.hannah-log.site/           # 301 또는 308
+curl -I https://apply.day-log.co.kr/healthz   # 200
+curl -I http://apply.day-log.co.kr/           # 301 또는 308
 ```
 
 브라우저에서 신청 1건을 제출해 Apps Script 스프레드시트 수신까지 확인한다.
@@ -144,11 +144,11 @@ curl -I http://daylog.hannah-log.site/           # 301 또는 308
 | --- | --- |
 | 프로젝트 / 저장소 | daylog / NewEngel/Daylog_Instagram |
 | 서버 / 계정 / SSH 포트 | 115.71.239.106 / root / 22 |
-| 도메인 / 호스트 포트 / 앱 포트 | daylog.hannah-log.site / 3016 / 3000 |
+| 도메인 / 호스트 포트 / 앱 포트 | daylog.hyukrecord.com / 3016 / 3000 |
 | 배포 경로 / 컨테이너명 | /root/daylog / daylog-app |
 | 시크릿 관리 | GitHub Actions secrets |
-| nginx 설정 / 인증서 이름 | /etc/nginx/conf.d/daylog.hannah-log.site.conf / (certbot certificates 확인) |
-| 정상 배포 커밋 / 확인 일자 | |
+| nginx 설정 / 인증서 이름 | /etc/nginx/conf.d/daylog.hyukrecord.com.conf / (certbot certificates 확인) |
+| 정상 배포 커밋 / 확인 일자 | `f433bf61400e9a0de0ce92d7b515ed4882f884a3` / 2026-09-08 |
 
 ## 9. 수동 배포 (Actions를 쓰지 않을 때)
 
@@ -165,3 +165,20 @@ cd /root/daylog && git pull && docker compose up -d --build
 | 컨테이너의 외부 요청(Apps Script) 실패 | `network_mode: bridge` 누락 여부 → 서버·컨테이너 DNS·방화벽 |
 | Actions SSH 인증 실패 | 개인키 전체 내용으로 `VPS_SSH_KEY` 재등록 |
 | 서버에서 고친 `.env`가 되돌아감 | 정상 동작. 값은 Actions secrets에서 관리한다 |
+
+
+## 2026-09-08 도메인 연결 확인
+
+- 가비아 권한 DNS와 공용 DNS에서 `daylog.hyukrecord.com` → `115.71.239.106` 확인.
+- `/etc/nginx/conf.d/daylog.hyukrecord.com.conf`를 추가해 기존 앱 `127.0.0.1:3016`에 연결.
+- nginx 문법 검사 통과, Let’s Encrypt 인증서 발급 및 HTTPS 적용 완료. 인증서 만료일은 2026-12-07입니다.
+- 외부 HTTPS `/` 200, `/healthz` 응답 `ok`, HTTP → HTTPS 301 확인.
+- 서버의 인증서 자동 갱신 타이머 활성 상태 확인. 갱신 dry-run은 아직 수행하지 않았습니다.
+- 초기 HTTP 설정 원본은 [nginx 설정](../../deploy/nginx/daylog.hyukrecord.com.conf)입니다. 운영 서버 파일에는 Certbot이 HTTPS 및 리다이렉트를 추가했습니다. 운영 파일을 초기 설정으로 덮어쓰지 않습니다.
+
+
+## SSH 개인키 파싱 오류
+
+`ssh.ParsePrivateKey: ssh: no key found`는 서버 명령 실행 전에 발생합니다. `VPS_SSH_KEY`에는 파일 경로·공개키가 아닌 배포용 개인키 파일 전체가 줄바꿈을 유지한 상태로 등록되어야 합니다.
+
+2026-09-08 사용자가 맥의 `~/.ssh/daylog_deploy`를 `VPS_SSH_KEY`에 직접 재등록했습니다. 실패했던 [배포 실행 34195726212](https://github.com/NewEngel/Daylog_Instagram/actions/runs/34195726212)을 재실행해 SSH 접속과 배포 성공을 확인했습니다. 배포 커밋은 `f433bf61400e9a0de0ce92d7b515ed4882f884a3`입니다. 배포 후 외부 HTTPS 200, `/healthz`의 `ok`, HTTP → HTTPS 301을 확인했습니다. 실제 신청 제출·Sheets 수신은 이번 검수에 포함하지 않았습니다. 키의 실제 내용은 문서·로그·채팅에 출력하지 않습니다.
