@@ -70,8 +70,10 @@ h1[tabindex="-1"]:focus { outline: none; }
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: auto;
-  padding: 3px;
-  margin: -3px;
+  /* Keep outer focus rings (up to 6px) inside the scrollable clip area. */
+  padding: 8px;
+  margin: -8px;
+  scroll-padding: 8px;
   scrollbar-width: thin;
 }
 .intro-page, .success-page { text-align: center; }
